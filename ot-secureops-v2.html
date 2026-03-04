@@ -1,0 +1,1716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>OT SecureOps — AI-Driven Incident Response Platform</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+/* Fluid scaling for all text */
+html{font-size:clamp(12px,1.1vw,15px)}
+:root{
+  --bg:#050911;--s1:#090e1a;--s2:#0d1525;--s3:#111d30;--s4:#17253a;
+  --b1:#1c2d42;--b2:#243650;--b3:#2d4260;
+  --txt:#c8d8ec;--txt2:#7a9ab5;--txt3:#3f5870;--txt4:#253347;
+  --ok:#00cc6a;--warn:#f59e0b;--crit:#ef4444;--info:#3b82f6;--violet:#8b5cf6;--cyan:#06b6d4;
+  --t1:#ef4444;--t2:#f97316;--t3:#eab308;
+  --ph0:#3b82f6;--ph1:#fbbf24;--ph2:#f97316;--ph3:#ef4444;--ph4:#8b5cf6;--ph5:#10b981;--ph6:#60a5fa;
+  --r:4px;--mono:'JetBrains Mono',monospace;--ui:'DM Sans',sans-serif;
+}
+body{font-family:var(--ui);background:var(--bg);color:var(--txt);display:flex;flex-direction:column}
+/* Fine grid bg */
+body::before{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(var(--b1) 1px,transparent 1px),linear-gradient(90deg,var(--b1) 1px,transparent 1px);
+  background-size:60px 60px;opacity:.15;pointer-events:none;z-index:0}
+/* CRT scanlines */
+body::after{content:'';position:fixed;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.04) 2px,rgba(0,0,0,.04) 4px);
+  pointer-events:none;z-index:9999}
+.z1{position:relative;z-index:1}
+
+/* ── TOPBAR ── */
+#topbar{height:44px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+  padding:0 18px;background:var(--s1);border-bottom:1px solid var(--b2);z-index:200;position:relative}
+.logo{font-family:var(--mono);font-size:.82rem;font-weight:700;letter-spacing:.06em;color:var(--txt)}
+.logo .ot{color:var(--crit)}.logo .ver{font-size:.6rem;color:var(--txt3);margin-left:8px;font-weight:400}
+.tabs{display:flex;height:100%;gap:1px;overflow-x:auto}
+.tabs::-webkit-scrollbar{height:0}
+.tab{font-size:clamp(.62rem,.75vw,.74rem);font-weight:500;padding:0 clamp(8px,1.2vw,16px);height:100%;
+  border:none;cursor:pointer;background:transparent;color:var(--txt3);
+  border-bottom:2px solid transparent;transition:all .18s;letter-spacing:.02em;white-space:nowrap;flex-shrink:0}
+.tab:hover{color:var(--txt2);background:rgba(255,255,255,.025)}
+.tab.on{color:var(--txt);border-bottom-color:var(--info);background:rgba(59,130,246,.04)}
+.tab .cnt{display:inline-block;margin-left:5px;background:var(--crit);color:#fff;
+  font-size:.58rem;font-weight:700;padding:1px 5px;border-radius:8px;animation:bp .9s infinite}
+@keyframes bp{0%,100%{opacity:1}50%{opacity:.4}}
+.tb-r{display:flex;align-items:center;gap:10px;font-size:.7rem;color:var(--txt3)}
+.pill{padding:2px 9px;border-radius:2px;border:1px solid;font-size:.6rem;font-weight:700;
+  letter-spacing:.09em;font-family:var(--mono)}
+.pill-ok{border-color:var(--ok);color:var(--ok)}
+.pill-w{border-color:var(--warn);color:var(--warn)}
+.pill-c{border-color:var(--crit);color:var(--crit);animation:bp .7s infinite}
+.ld{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 5px var(--ok);animation:ldp 1.8s infinite}
+@keyframes ldp{0%,100%{opacity:1}50%{opacity:.1}}
+#tb-mode-badge{font-size:.62rem;font-family:var(--mono);color:var(--cyan);padding:2px 8px;
+  border:1px solid rgba(6,182,212,.3);border-radius:2px;background:rgba(6,182,212,.06)}
+
+/* ── PAGES ── */
+#pages{flex:1;overflow:hidden;position:relative;z-index:1}
+.pg{display:none;height:100%;overflow:hidden;flex-direction:column}
+.pg.on{display:flex}
+
+/* ── SHARED COMPONENTS ── */
+.card{background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:12px}
+.ch{font-family:var(--mono);font-size:.6rem;font-weight:600;letter-spacing:.16em;color:var(--txt3);
+  text-transform:uppercase;margin-bottom:8px}
+.ch span{color:var(--info)}
+.sc{overflow-y:auto}
+.sc::-webkit-scrollbar{width:3px}
+.sc::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
+.sc::-webkit-scrollbar-track{background:transparent}
+/* Charts must never overflow their card */
+canvas{max-width:100%!important;display:block}
+.card{min-width:0;overflow:hidden}
+
+
+.mt{background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:10px 12px;
+  position:relative;overflow:hidden;transition:border-color .2s;min-width:0}
+.mt::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--mc,var(--b2))}
+.mt:hover{border-color:var(--b2)}
+.mt-l{font-family:var(--mono);font-size:clamp(.52rem,.6vw,.65rem);letter-spacing:.1em;color:var(--txt3);
+  text-transform:uppercase;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mt-v{font-family:var(--mono);font-size:clamp(1rem,1.4vw,1.45rem);font-weight:700;line-height:1;
+  color:var(--mc,var(--txt));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mt-s{font-size:clamp(.58rem,.65vw,.68rem);color:var(--txt3);margin-top:3px}
+.mt-tr{font-size:.65rem;margin-top:2px}
+.tr-up{color:var(--ok)}.tr-dn{color:var(--crit)}.tr-neu{color:var(--txt3)}
+
+/* buttons */
+.btn{font-family:var(--ui);font-size:.72rem;font-weight:600;padding:6px 12px;
+  border-radius:var(--r);border:1px solid;cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn-p{background:rgba(59,130,246,.1);border-color:var(--info);color:var(--info)}
+.btn-p:hover{background:rgba(59,130,246,.2);box-shadow:0 0 10px rgba(59,130,246,.2)}
+.btn-d{background:rgba(239,68,68,.08);border-color:var(--crit);color:var(--crit)}
+.btn-d:hover{background:rgba(239,68,68,.16)}
+.btn-ok{background:rgba(0,204,106,.08);border-color:var(--ok);color:var(--ok)}
+.btn-ok:hover{background:rgba(0,204,106,.15)}
+.btn-w{background:rgba(245,158,11,.08);border-color:var(--warn);color:var(--warn)}
+.btn-w:hover{background:rgba(245,158,11,.15)}
+.btn-g{background:rgba(255,255,255,.04);border-color:var(--b2);color:var(--txt2)}
+.btn-g:hover{background:rgba(255,255,255,.08)}
+.btn:disabled{opacity:.3;cursor:not-allowed;pointer-events:none}
+.btn-sm{font-size:.66rem;padding:4px 9px}
+.btn-xs{font-size:.6rem;padding:3px 7px}
+
+/* badges */
+.bge{display:inline-block;font-family:var(--mono);font-size:.58rem;font-weight:700;
+  padding:2px 5px;border-radius:2px;letter-spacing:.05em}
+.bge-tp{background:rgba(239,68,68,.12);color:var(--crit)}
+.bge-fp{background:rgba(245,158,11,.1);color:var(--warn)}
+.bge-nd{background:rgba(59,130,246,.1);color:var(--info)}
+.bge-ok{background:rgba(0,204,106,.08);color:var(--ok)}
+.bge-cl{background:rgba(63,88,112,.25);color:var(--txt3)}
+.bge-t1{background:rgba(239,68,68,.12);color:var(--t1)}
+.bge-t2{background:rgba(249,115,22,.1);color:var(--t2)}
+.bge-t3{background:rgba(234,179,8,.1);color:var(--t3)}
+
+/* table */
+.tbl{width:100%;border-collapse:collapse;font-size:.76rem}
+.tbl th{font-family:var(--mono);font-size:.58rem;font-weight:600;letter-spacing:.1em;
+  color:var(--txt3);text-transform:uppercase;padding:6px 9px;border-bottom:1px solid var(--b1);text-align:left}
+.tbl td{padding:7px 9px;border-bottom:1px solid rgba(255,255,255,.035);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:rgba(255,255,255,.015)}
+
+/* progress bar */
+.pb{background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden}
+.pb-f{height:100%;border-radius:2px;transition:width .5s ease}
+
+/* info box */
+.ib{border-radius:var(--r);padding:8px 10px;font-size:.74rem;line-height:1.5;border:1px solid}
+.ib-i{background:rgba(59,130,246,.06);border-color:rgba(59,130,246,.2);color:var(--txt2)}
+.ib-w{background:rgba(245,158,11,.06);border-color:rgba(245,158,11,.2);color:var(--txt2)}
+.ib-c{background:rgba(239,68,68,.06);border-color:rgba(239,68,68,.2);color:var(--txt2)}
+.ib-ok{background:rgba(0,204,106,.05);border-color:rgba(0,204,106,.2);color:var(--txt2)}
+
+/* form */
+select,input[type=text],input[type=number],textarea{
+  background:var(--s3);border:1px solid var(--b2);border-radius:var(--r);
+  color:var(--txt);font-family:var(--ui);font-size:.75rem;padding:5px 9px;width:100%}
+select:focus,input:focus{outline:none;border-color:var(--info)}
+label{font-size:.7rem;color:var(--txt2);display:block;margin-bottom:3px}
+hr.div{border:none;border-top:1px solid var(--b1);margin:8px 0}
+
+/* phase chip */
+.ph-chip{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);
+  font-size:.6rem;font-weight:700;letter-spacing:.06em;padding:2px 6px;border-radius:2px}
+
+/* ══════════════════════════════════
+   PAGE 1 — SOC DASHBOARD
+══════════════════════════════════ */
+#pg-soc{display:none}
+#pg-soc.on{display:flex;flex-direction:column}
+#soc-wrap{flex:1;overflow:hidden;display:grid;grid-template-columns:1fr clamp(220px,22vw,300px);grid-template-rows:auto 1fr;min-height:0}
+#soc-mbar{grid-column:1/-1;display:flex;gap:6px;padding:8px;border-bottom:1px solid var(--b1);
+  background:var(--s1);flex-shrink:0;overflow-x:auto;min-height:0}
+#soc-mbar .mt{flex:1;min-width:90px;max-width:200px;padding:8px 10px}
+#soc-left{display:flex;flex-direction:column;border-right:1px solid var(--b1);overflow:hidden;min-width:0}
+#soc-atb{display:flex;align-items:center;gap:6px;padding:7px 9px;border-bottom:1px solid var(--b1);
+  flex-shrink:0;flex-wrap:wrap;background:var(--s1);min-width:0}
+#soc-feed{flex:1;overflow-y:auto;min-width:0}
+#soc-right{overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:7px;background:var(--s1);min-width:0}
+.ali{display:flex;gap:8px;padding:9px 10px;border-bottom:1px solid rgba(255,255,255,.035);
+  transition:background .12s;animation:ali .25s ease;border-left:3px solid transparent}
+@keyframes ali{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:none}}
+.ali:hover{background:rgba(255,255,255,.018)}
+.ali.nd{border-left-color:var(--info)}.ali.tp{border-left-color:var(--crit)}
+.ali.fp{border-left-color:var(--warn)}.ali.cl{border-left-color:var(--txt4);opacity:.6}
+.ali-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px}
+
+/* ══════════════════════════════════
+   PAGE 2 — IR LIFECYCLE
+══════════════════════════════════ */
+#pg-ir{display:none}
+#pg-ir.on{display:flex}
+#ir-wrap{flex:1;overflow:hidden;display:grid;grid-template-columns:clamp(180px,18vw,240px) 1fr clamp(220px,22vw,275px);min-height:0}
+#ir-left{border-right:1px solid var(--b1);display:flex;flex-direction:column;overflow:hidden;background:var(--s1);min-width:0}
+#ir-tlist{flex:1;overflow-y:auto;min-width:0}
+.iti{padding:8px 11px;border-bottom:1px solid var(--b1);cursor:pointer;position:relative;
+  transition:background .12s;overflow:hidden}
+.iti::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--tc,var(--txt3));transition:width .2s}
+.iti:hover{background:rgba(255,255,255,.025)}.iti:hover::before{width:4px}
+.iti.sel{background:rgba(255,255,255,.04)}.iti.sel::before{width:4px}
+.iti.fire{animation:ifire .7s infinite}
+@keyframes ifire{0%,100%{background:rgba(239,68,68,.04)}50%{background:rgba(239,68,68,.09)}}
+.iti-rk{font-family:var(--mono);font-size:.58rem;color:var(--tc,var(--txt3));font-weight:700}
+.iti-nm{font-size:.78rem;font-weight:600;margin:2px 0;line-height:1.2}
+.iti-meta{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-top:3px}
+.fp-bar-wrap{width:50px;height:4px;background:rgba(255,255,255,.07);border-radius:2px;overflow:hidden;display:inline-block}
+.fp-bar-fill{height:100%;border-radius:2px;transition:width .4s}
+
+/* IR centre */
+#ir-ctr{display:flex;flex-direction:column;overflow:hidden;min-width:0}
+#ir-pipe{display:flex;border-bottom:1px solid var(--b1);flex-shrink:0;background:var(--s1);overflow-x:auto}
+#ir-pipe::-webkit-scrollbar{height:2px}
+.ipp{flex:1;min-width:52px;padding:7px 3px;display:flex;flex-direction:column;align-items:center;gap:3px;
+  border-right:1px solid var(--b1);transition:background .3s;cursor:pointer;position:relative}
+.ipp:last-child{border-right:none}
+.ipp.done{background:rgba(16,185,129,.04)}
+.ipp.act{background:rgba(255,255,255,.035)}
+.ipp.locked{opacity:.45;cursor:default}
+.ipp-dot{width:6px;height:6px;border-radius:50%;background:var(--txt3);transition:all .3s}
+.ipp.done .ipp-dot{background:var(--ok)}
+.ipp.act .ipp-dot{background:var(--pc);box-shadow:0 0 7px var(--pc);animation:ldp 1s infinite}
+.ipp-lbl{font-family:var(--mono);font-size:.57rem;font-weight:600;letter-spacing:.07em;
+  color:var(--txt3);transition:color .3s}
+.ipp.done .ipp-lbl{color:var(--ok)}.ipp.act .ipp-lbl{color:var(--pc)}
+.ipp-pg{width:70%;height:2px;background:rgba(255,255,255,.06);border-radius:1px;overflow:hidden}
+.ipp-pg-f{height:100%;border-radius:1px;transition:width .4s ease}
+.ipp.done .ipp-pg-f{width:100%;background:var(--ok)}
+/* manual advance btn on active phase */
+.ipp-adv{display:none;position:absolute;bottom:-1px;left:50%;transform:translateX(-50%);
+  font-size:.55rem;font-family:var(--mono);color:var(--warn);white-space:nowrap;
+  background:var(--s1);border:1px solid var(--warn);padding:1px 5px;border-radius:2px;cursor:pointer;z-index:5}
+.ipp.act.manual-mode .ipp-adv{display:block}
+.ipp-adv:hover{background:rgba(245,158,11,.1)}
+
+#ir-dbar{padding:9px 14px;border-bottom:1px solid var(--b1);background:var(--s2);
+  flex-shrink:0;display:flex;align-items:center;gap:12px;min-height:46px}
+.idb-ph{font-family:var(--mono);font-size:.95rem;font-weight:700;transition:color .3s;letter-spacing:.04em}
+.idb-desc{font-size:.77rem;color:var(--txt2);flex:1;line-height:1.35}
+.idb-timer{font-family:var(--mono);font-size:.68rem;color:var(--txt3)}
+
+#ir-devs{display:flex;gap:5px;padding:6px 9px;border-bottom:1px solid var(--b1);
+  flex-shrink:0;overflow-x:auto;background:var(--s1)}
+#ir-devs::-webkit-scrollbar{height:2px}
+.idev{flex:0 0 auto;min-width:75px;background:var(--s2);border:1px solid var(--b1);
+  border-radius:var(--r);padding:5px 8px;transition:all .3s}
+.idev.aff{border-color:var(--crit)!important;animation:daff .9s infinite}
+@keyframes daff{0%,100%{box-shadow:none}50%{box-shadow:0 0 9px rgba(239,68,68,.3)}}
+.idev.iso{border-color:var(--violet)!important}
+.idev.rec{border-color:var(--ok)!important}
+.idev.rcvd{border-color:var(--ok)!important;opacity:.7}
+.idev-ic{font-size:.9rem}.idev-nm{font-size:.66rem;font-weight:600;margin:2px 0}
+.idev-val{font-family:var(--mono);font-size:.82rem;font-weight:700}
+.idev-un{font-size:.58rem;color:var(--txt3)}
+
+#ir-feed{flex:1;overflow-y:auto;padding:7px 10px}
+.iev{display:flex;gap:7px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.03);
+  font-size:.75rem;animation:evi .22s ease}
+@keyframes evi{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+.iev-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.iev-t{font-family:var(--mono);font-size:.59rem;color:var(--txt3)}
+.iev-msg{flex:1;line-height:1.38}
+.iev-det{font-size:.68rem;color:var(--txt3);margin-top:1px;font-style:italic}
+
+/* IR right */
+#ir-right{border-left:1px solid var(--b1);display:flex;flex-direction:column;overflow:hidden;background:var(--s1);min-width:0}
+#ir-ioc{padding:9px 11px;border-bottom:1px solid var(--b1);flex-shrink:0}
+.ir{display:flex;justify-content:space-between;padding:3px 0;font-size:.73rem;
+  border-bottom:1px solid rgba(255,255,255,.035)}
+.ir:last-child{border-bottom:none}
+.ir-k{color:var(--txt3)}.ir-v{font-family:var(--mono);font-size:.67rem;text-align:right;max-width:130px;word-break:break-word}
+#ir-pb{flex:1;overflow-y:auto}
+.pb-blk{padding:7px 11px;border-bottom:1px solid var(--b1)}
+.pb-bh{display:flex;align-items:center;gap:6px;margin-bottom:5px}
+.pb-bn{font-family:var(--mono);font-size:.73rem;font-weight:700}
+.pb-step{display:flex;gap:6px;padding:3px 0;font-size:.71rem;line-height:1.38;
+  border-bottom:1px solid rgba(255,255,255,.025)}
+.pb-step:last-child{border-bottom:none}
+.pb-step .n{font-family:var(--mono);font-size:.59rem;color:var(--txt3);min-width:15px;margin-top:1px}
+.pb-step .t{color:var(--txt3)}
+.pb-step.dn .n,.pb-step.dn .t{color:var(--ok)}
+.pb-step.ac .n{color:var(--warn)}.pb-step.ac .t{color:var(--txt);font-weight:500}
+#ir-ctrl{padding:9px 11px;border-top:1px solid var(--b1);flex-shrink:0;display:flex;flex-direction:column;gap:7px}
+
+/* MODE TOGGLE */
+.mode-row{display:flex;align-items:center;gap:6px;font-size:.68rem;color:var(--txt3)}
+.mode-toggle{display:flex;border:1px solid var(--b2);border-radius:3px;overflow:hidden}
+.mode-opt{padding:3px 10px;font-size:.65rem;font-family:var(--mono);cursor:pointer;
+  background:transparent;color:var(--txt3);border:none;transition:all .15s;font-weight:600;letter-spacing:.07em}
+.mode-opt.on{background:var(--info);color:#fff}
+.mode-opt:hover:not(.on){background:rgba(255,255,255,.05);color:var(--txt2)}
+
+/* TRIAGE MODAL */
+#triage-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:500;
+  align-items:center;justify-content:center;padding:16px}
+#triage-ov.show{display:flex}
+#triage-box{background:var(--s2);border:1px solid var(--b2);border-radius:6px;padding:20px;
+  width:min(520px,100%);max-height:90vh;overflow-y:auto;
+  box-shadow:0 24px 60px rgba(0,0,0,.6);animation:tbx .2s ease}
+@keyframes tbx{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
+.tb-title{font-family:var(--mono);font-size:1rem;font-weight:700;margin-bottom:5px}
+.tb-desc{font-size:.79rem;color:var(--txt2);line-height:1.5;margin-bottom:14px}
+.tb-ai-box{background:rgba(6,182,212,.06);border:1px solid rgba(6,182,212,.2);border-radius:var(--r);
+  padding:10px 12px;margin-bottom:12px;font-size:.76rem;line-height:1.5}
+.tb-ai-box .ai-lbl{font-family:var(--mono);font-size:.59rem;letter-spacing:.12em;color:var(--cyan);margin-bottom:5px}
+.tb-opts{display:flex;flex-direction:column;gap:7px;margin-bottom:14px}
+.tb-opt{padding:9px 12px;border-radius:var(--r);border:1px solid var(--b2);cursor:pointer;
+  transition:all .15s;font-size:.78rem;line-height:1.35}
+.tb-opt:hover{border-color:var(--info);background:rgba(59,130,246,.05)}
+.tb-opt.sel-tp{border-color:var(--crit)!important;background:rgba(239,68,68,.07)!important}
+.tb-opt.sel-fp{border-color:var(--warn)!important;background:rgba(245,158,11,.07)!important}
+.tb-btns{display:flex;gap:8px;justify-content:flex-end}
+
+/* ══════════════════════════════════
+   PAGE 3 — AI ENGINE
+══════════════════════════════════ */
+#pg-ai{display:none}
+#pg-ai.on{display:flex;flex-direction:column}
+#ai-wrap{flex:1;overflow:hidden;display:grid;grid-template-columns:clamp(200px,20vw,260px) 1fr;min-height:0}
+#ai-left{border-right:1px solid var(--b1);overflow-y:auto;padding:9px;
+  display:flex;flex-direction:column;gap:7px;background:var(--s1);min-width:0}
+#ai-main{overflow-y:auto;padding:9px;display:flex;flex-direction:column;gap:9px;min-width:0}
+.ai-trow{display:flex;align-items:center;gap:7px;padding:6px 9px;border-bottom:1px solid rgba(255,255,255,.035);
+  cursor:pointer;font-size:.75rem;transition:background .12s;border-radius:3px}
+.ai-trow:hover{background:rgba(255,255,255,.025)}.ai-trow.sel{background:rgba(59,130,246,.06)}
+
+/* Tuning wizard */
+#tuning-wiz{background:rgba(245,158,11,.05);border:1px solid rgba(245,158,11,.22);
+  border-radius:var(--r);padding:12px;display:none}
+#tuning-wiz.show{display:block}
+.tw-prop{padding:6px 9px;background:rgba(255,255,255,.03);border:1px solid var(--b2);
+  border-radius:var(--r);margin-bottom:5px;font-size:.72rem;line-height:1.4}
+.tw-prop input[type=checkbox]{accent-color:var(--warn);margin-right:6px}
+
+/* ══════════════════════════════════
+   PAGE 4 — CISO / CXO
+══════════════════════════════════ */
+#pg-ciso{display:none}
+#pg-ciso.on{display:flex;flex-direction:column}
+#ciso-wrap{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:9px;min-width:0}
+/* Responsive grids - collapse on narrow screens */
+.g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:8px}
+.g3{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
+.g4{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px}
+.g6{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.risk-ring-wrap{display:flex;align-items:center;gap:16px}
+.risk-num{font-family:var(--mono);font-size:2.6rem;font-weight:700;line-height:1}
+.cb-row{display:flex;align-items:center;gap:8px;font-size:.75rem}
+.cb-lbl{min-width:115px;color:var(--txt2)}.cb-pct{min-width:34px;text-align:right;font-family:var(--mono);font-size:.68rem}
+.cost-row{display:flex;justify-content:space-between;padding:5px 0;
+  border-bottom:1px solid rgba(255,255,255,.04);font-size:.78rem}
+.cost-row:last-child{border-bottom:none}.cost-val{font-family:var(--mono);font-weight:600}
+
+/* ══════════════════════════════════
+   FOOTER
+══════════════════════════════════ */
+#footer{display:flex;border-top:1px solid var(--b1);background:var(--s1);flex-shrink:0;
+  height:auto;min-height:22px;flex-wrap:wrap;z-index:1}
+.ftc{flex:1;min-width:80px;display:flex;align-items:center;justify-content:center;gap:4px;
+  border-right:1px solid var(--b1);font-family:var(--mono);
+  font-size:clamp(.54rem,.6vw,.61rem);color:var(--txt3);padding:3px 4px}
+.ftc:last-child{border-right:none}.ftc b{color:var(--txt);font-weight:600}
+</style>
+</head>
+<body>
+<!-- TOPBAR -->
+<div id="topbar" class="z1">
+  <div class="logo"><span class="ot">OT</span>SecureOps<span class="ver">v2.0 · AI-IR PLATFORM</span></div>
+  <div class="tabs">
+    <button class="tab on" onclick="goPage('soc',this)">🔲 SOC Dashboard<span class="cnt" id="cnt-soc" style="display:none">0</span></button>
+    <button class="tab" onclick="goPage('ir',this)">⚡ IR Lifecycle</button>
+    <button class="tab" onclick="goPage('ai',this)">🤖 AI Engine</button>
+    <button class="tab" onclick="goPage('ciso',this)">📊 CISO / CXO</button>
+  </div>
+  <div class="tb-r">
+    <div class="ld"></div>
+    <span id="tb-clk" style="font-family:var(--mono);font-size:.68rem">--:--:--</span>
+    <div id="tb-mode-badge">MODE: AUTO</div>
+    <div class="pill pill-ok" id="tb-st">SECURE</div>
+  </div>
+</div>
+
+<!-- PAGES -->
+<div id="pages">
+
+<!-- ════════════ SOC DASHBOARD ════════════ -->
+<div class="pg on" id="pg-soc">
+  <div id="soc-wrap">
+    <!-- Metric bar -->
+    <div id="soc-mbar" class="z1">
+      <div class="mt" style="--mc:var(--crit)"><div class="mt-l">Active Alerts</div><div class="mt-v" id="m-act">0</div><div class="mt-s">Pending triage</div></div>
+      <div class="mt" style="--mc:var(--warn)"><div class="mt-l">MTTD</div><div class="mt-v" id="m-mttd">—</div><div class="mt-s">Mean time to detect</div><div class="mt-tr" id="m-mttd-tr"></div></div>
+      <div class="mt" style="--mc:var(--info)"><div class="mt-l">MTTR</div><div class="mt-v" id="m-mttr">—</div><div class="mt-s">Mean time to respond</div><div class="mt-tr" id="m-mttr-tr"></div></div>
+      <div class="mt" style="--mc:var(--ok)"><div class="mt-l">Alert Accuracy</div><div class="mt-v" id="m-acc">—</div><div class="mt-s">True positive rate</div><div class="mt-tr tr-up" id="m-acc-tr"></div></div>
+      <div class="mt" style="--mc:var(--violet)"><div class="mt-l">OT Downtime</div><div class="mt-v" id="m-dt">0s</div><div class="mt-s">Cumulative</div></div>
+      <div class="mt" style="--mc:var(--t1)"><div class="mt-l">Incident Cost</div><div class="mt-v" id="m-cost">$0</div><div class="mt-s">Estimated impact</div></div>
+    </div>
+    <!-- Alert feed -->
+    <div id="soc-left">
+      <div id="soc-atb">
+        <span style="font-family:var(--mono);font-size:.6rem;letter-spacing:.12em;color:var(--txt3)">ALERT QUEUE</span>
+        <select id="sf-status" style="width:120px" onchange="renderFeed()"><option value="all">All Alerts</option><option value="nd">Pending</option><option value="tp">True Positive</option><option value="fp">False Positive</option><option value="cl">Closed</option></select>
+        <select id="sf-threat" style="width:150px" onchange="renderFeed()"><option value="all">All Threats</option></select>
+        <button class="btn btn-g btn-sm" onclick="renderFeed()">↺</button>
+        <button class="btn btn-w btn-sm" onclick="clearFP()">Clear FP</button>
+        <div style="margin-left:auto;font-size:.68rem;color:var(--txt3)">
+          Total:<b id="ft-tot" style="color:var(--txt);margin:0 4px">0</b>
+          TP:<b id="ft-tp" style="color:var(--crit);margin:0 4px">0</b>
+          FP:<b id="ft-fp" style="color:var(--warn);margin:0 4px">0</b>
+        </div>
+      </div>
+      <div id="soc-feed" class="sc"></div>
+    </div>
+    <!-- Charts side -->
+    <div id="soc-right">
+      <div class="card"><div class="ch">Alert Volume (24h)</div><canvas id="ch-vol" height="90"></canvas></div>
+      <div class="card"><div class="ch">TP vs FP Rate %</div><canvas id="ch-tpfp" height="90"></canvas></div>
+      <div class="card"><div class="ch">MTTD / MTTR Trend (s)</div><canvas id="ch-ttr" height="90"></canvas></div>
+      <div class="card"><div class="ch">Incident Cost ($)</div><canvas id="ch-cost" height="90"></canvas></div>
+      <div class="card" style="flex-shrink:0"><div class="ch">Self-Healing Controls</div><div id="soc-ctrl-list" style="display:flex;flex-direction:column;gap:5px"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════ IR LIFECYCLE ════════════ -->
+<div class="pg" id="pg-ir">
+  <div id="ir-wrap">
+    <div id="ir-left">
+      <div style="padding:8px 10px;border-bottom:1px solid var(--b1);display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+        <span style="font-family:var(--mono);font-size:.59rem;letter-spacing:.15em;color:var(--txt3)">OT TOP 10 THREATS</span>
+        <span id="ir-act-cnt" style="font-family:var(--mono);font-size:.59rem;color:var(--crit)">0 ACTIVE</span>
+      </div>
+      <div id="ir-tlist" class="sc" style="flex:1"></div>
+    </div>
+    <div id="ir-ctr">
+      <div id="ir-pipe"></div>
+      <div id="ir-dbar">
+        <div><div style="font-family:var(--mono);font-size:.58rem;letter-spacing:.1em;color:var(--txt3);margin-bottom:1px">CURRENT PHASE</div>
+          <div class="idb-ph" id="idb-ph" style="color:var(--ph0)">PREPARATION</div></div>
+        <div class="idb-desc" id="idb-desc">System armed. Select a threat scenario and launch to begin.</div>
+        <div class="idb-timer">T+<span id="idb-t">00:00</span></div>
+      </div>
+      <div id="ir-devs"></div>
+      <div id="ir-feed" class="sc"></div>
+    </div>
+    <div id="ir-right">
+      <div id="ir-ioc">
+        <div style="font-family:var(--mono);font-size:.58rem;letter-spacing:.14em;color:var(--txt3);margin-bottom:7px">INDICATORS OF COMPROMISE</div>
+        <div class="ir"><span class="ir-k">Threat</span><span class="ir-v" id="ioc-th" style="color:var(--txt3)">—</span></div>
+        <div class="ir"><span class="ir-k">Attack Type</span><span class="ir-v" id="ioc-at" style="color:var(--txt3)">—</span></div>
+        <div class="ir"><span class="ir-k">Vector</span><span class="ir-v" id="ioc-vec" style="color:var(--txt3)">—</span></div>
+        <div class="ir"><span class="ir-k">Affected Assets</span><span class="ir-v" id="ioc-ast" style="color:var(--txt3)">—</span></div>
+        <div class="ir"><span class="ir-k">CVSSv3 Score</span><span class="ir-v" id="ioc-cv" style="color:var(--txt3)">—</span></div>
+        <div class="ir"><span class="ir-k">AI Confidence</span><span class="ir-v" id="ioc-cn" style="color:var(--txt3)">—</span></div>
+        <div class="ir"><span class="ir-k">Classification</span><span class="ir-v" id="ioc-cl" style="color:var(--txt3)">PENDING</span></div>
+        <div class="ir"><span class="ir-k">IEC 62443 Ref</span><span class="ir-v" id="ioc-iec" style="color:var(--txt3)">—</span></div>
+      </div>
+      <div style="padding:5px 11px;border-bottom:1px solid var(--b1);flex-shrink:0;display:flex;align-items:center;justify-content:space-between">
+        <span style="font-family:var(--mono);font-size:.58rem;letter-spacing:.14em;color:var(--txt3)">NIST IR PLAYBOOK</span>
+        <span id="pb-phase-lbl" style="font-family:var(--mono);font-size:.58rem;color:var(--txt3)"></span>
+      </div>
+      <div id="ir-pb" class="sc" style="flex:1"></div>
+      <div id="ir-ctrl">
+        <select id="ir-sel"></select>
+        <div class="mode-row">
+          <span>Simulation Mode:</span>
+          <div class="mode-toggle">
+            <button class="mode-opt on" id="mo-auto" onclick="setMode('auto')">AUTO</button>
+            <button class="mode-opt" id="mo-man" onclick="setMode('manual')">MANUAL</button>
+          </div>
+          <span id="mode-hint" style="color:var(--cyan);font-family:var(--mono);font-size:.6rem"></span>
+        </div>
+        <div style="display:flex;gap:7px">
+          <button class="btn btn-d" id="btn-launch" onclick="launchIR()" style="flex:1">⚡ Launch Scenario</button>
+          <button class="btn btn-g btn-sm" onclick="resetIR()">↺</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:.64rem;color:var(--txt3)">
+          Speed <input type="range" id="ir-spd" min="300" max="4000" value="900" step="100"
+            oninput="setSpd(this.value)" style="flex:1;accent-color:var(--info)">
+          <span id="spd-lbl" style="font-family:var(--mono)">0.9s</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════ AI ENGINE ════════════ -->
+<div class="pg" id="pg-ai">
+  <div id="ai-wrap">
+    <div id="ai-left">
+      <div style="font-family:var(--mono);font-size:.58rem;letter-spacing:.14em;color:var(--txt3);padding:2px 0 6px">AI MODEL — PER THREAT</div>
+      <div id="ai-trows"></div>
+      <hr class="div"/>
+      <div class="card" style="padding:9px">
+        <div class="ch" style="margin-bottom:6px">Overall Model Health</div>
+        <div class="g2" style="gap:6px">
+          <div class="mt" style="--mc:var(--ok);padding:7px"><div class="mt-l" style="font-size:.56rem">TP Rate</div><div class="mt-v" style="font-size:1.1rem" id="ai-gtp">—</div></div>
+          <div class="mt" style="--mc:var(--warn);padding:7px"><div class="mt-l" style="font-size:.56rem">FP Rate</div><div class="mt-v" style="font-size:1.1rem" id="ai-gfp">—</div></div>
+          <div class="mt" style="--mc:var(--info);padding:7px"><div class="mt-l" style="font-size:.56rem">Tuning Events</div><div class="mt-v" style="font-size:1.1rem" id="ai-gtune">0</div></div>
+          <div class="mt" style="--mc:var(--violet);padding:7px"><div class="mt-l" style="font-size:.56rem">Controls Added</div><div class="mt-v" style="font-size:1.1rem" id="ai-gctrl">0</div></div>
+        </div>
+      </div>
+    </div>
+    <div id="ai-main">
+      <div class="card"><div class="ch">Alert Accuracy Over Time — <span id="ai-sel-nm">All Threats</span></div><canvas id="ch-ai-acc" height="95"></canvas></div>
+      <div class="g2">
+        <div class="card"><div class="ch">Alert Volume by Threat</div><canvas id="ch-ai-vol" height="115"></canvas></div>
+        <div class="card"><div class="ch">FP Rate Trend (Rolling Average)</div><canvas id="ch-ai-fpr" height="115"></canvas></div>
+      </div>
+      <div id="tuning-wiz">
+        <div style="display:flex;align-items:flex-start;gap:9px;margin-bottom:9px">
+          <span style="font-size:1.1rem;flex-shrink:0">⚠️</span>
+          <div>
+            <div style="font-size:.83rem;font-weight:700;color:var(--warn);margin-bottom:2px">AI Fine-Tuning Required</div>
+            <div id="tw-reason" style="font-size:.74rem;color:var(--txt2)"></div>
+          </div>
+        </div>
+        <div id="tw-analysis" class="ib ib-w" style="margin-bottom:9px;font-size:.73rem"></div>
+        <div style="font-size:.72rem;color:var(--txt2);margin-bottom:6px;font-weight:600">Proposed rule adjustments (check all to apply):</div>
+        <div id="tw-props"></div>
+        <div style="display:flex;gap:7px;margin-top:9px">
+          <button class="btn btn-w btn-sm" onclick="applyTuning()">✓ Apply Selected</button>
+          <button class="btn btn-g btn-sm" onclick="dismissTuning()">Dismiss</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ch">Fine-Tune Database <span style="color:var(--txt3);font-weight:400;letter-spacing:0">(all tuning events)</span></div>
+        <table class="tbl"><thead><tr><th>Timestamp</th><th>Threat</th><th>Trigger</th><th>Rule Changed</th><th>FP Before</th><th>FP After</th><th>Δ Accuracy</th><th>Status</th></tr></thead>
+        <tbody id="ftdb"></tbody></table>
+      </div>
+      <div class="card">
+        <div class="ch">Per-Threat Alert History — <span id="ai-hist-nm">select threat on left</span></div>
+        <table class="tbl"><thead><tr><th>#</th><th>Time</th><th>Alert ID</th><th>AI Conf</th><th>Class.</th><th>MTTD</th><th>MTTR</th><th>Downtime</th><th>Cost</th><th>FP Reason</th><th>Controls Added</th></tr></thead>
+        <tbody id="ai-hist"></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════ CISO / CXO ════════════ -->
+<div class="pg" id="pg-ciso">
+  <div id="ciso-wrap">
+    <div class="g3">
+      <div class="card">
+        <div class="ch">Organisational Risk Score</div>
+        <div class="risk-ring-wrap">
+          <svg width="80" height="80" viewBox="0 0 80 80">
+            <circle cx="40" cy="40" r="32" fill="none" stroke="var(--b2)" stroke-width="6"/>
+            <circle id="risk-ring" cx="40" cy="40" r="32" fill="none" stroke="var(--ok)"
+              stroke-width="6" stroke-linecap="round" stroke-dasharray="201.1" stroke-dashoffset="201.1"
+              transform="rotate(-90 40 40)" style="transition:all .6s ease"/>
+          </svg>
+          <div>
+            <div class="risk-num" id="c-risk" style="color:var(--ok)">0</div>
+            <div style="font-size:.7rem;color:var(--txt2)">/100 risk score</div>
+            <div style="font-size:.68rem;color:var(--txt3);margin-top:1px" id="c-risk-lbl">LOW RISK</div>
+          </div>
+        </div>
+        <div style="margin-top:8px" id="c-factors"></div>
+      </div>
+      <div class="card">
+        <div class="ch">Financial Impact</div>
+        <div id="c-costs"></div>
+      </div>
+      <div class="card">
+        <div class="ch">Compliance Posture</div>
+        <div class="compliance-bar" id="c-comp" style="display:flex;flex-direction:column;gap:5px"></div>
+      </div>
+    </div>
+    <div class="g4" id="c-kpis"></div>
+    <div class="g2">
+      <div class="card"><div class="ch">Risk Score Trend</div><canvas id="ch-ciso-risk" height="105"></canvas></div>
+      <div class="card"><div class="ch">Cumulative Incident Cost ($)</div><canvas id="ch-ciso-cost" height="105"></canvas></div>
+    </div>
+    <div class="g2">
+      <div class="card"><div class="ch">Self-Healing Controls Deployed</div>
+        <table class="tbl"><thead><tr><th>Control</th><th>Triggered By</th><th>Risk Δ</th><th>Cost Saved</th><th>Status</th><th>Date</th></tr></thead>
+        <tbody id="c-ctrl"></tbody></table>
+      </div>
+      <div class="card"><div class="ch">AI Recommendations</div><div id="c-recs" style="display:flex;flex-direction:column;gap:7px"></div></div>
+    </div>
+    <div class="card">
+      <div class="ch">Threat Incident Summary — Board Report</div>
+      <table class="tbl"><thead><tr><th>Threat</th><th>Tier</th><th>Incidents</th><th>TP</th><th>FP</th><th>Accuracy</th><th>Avg MTTD</th><th>Avg MTTR</th><th>Downtime</th><th>Total Cost</th><th>Controls</th><th>Self-Heal</th></tr></thead>
+      <tbody id="c-summ"></tbody></table>
+    </div>
+  </div>
+</div>
+
+</div><!-- /pages -->
+
+<!-- TRIAGE MODAL -->
+<div id="triage-ov">
+  <div id="triage-box">
+    <div class="tb-title" id="tb-ttl">🔍 Alert Triage Required</div>
+    <div class="tb-desc" id="tb-desc"></div>
+    <div class="tb-ai-box"><div class="ai-lbl">▸ AI ENGINE REASONING</div><div id="tb-ai-rsn"></div></div>
+    <div class="tb-opts" id="tb-opts"></div>
+    <div class="tb-btns">
+      <button class="btn btn-g btn-sm" onclick="triageDecide('fp')">⚠ False Positive — Dismiss & Learn</button>
+      <button class="btn btn-d" onclick="triageDecide('tp')">🚨 True Positive — Execute IR</button>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div id="footer" class="z1">
+  <div class="ftc">DEVICES <b id="f-devs">8</b></div>
+  <div class="ftc">TOTAL ALERTS <b id="f-tot">0</b></div>
+  <div class="ftc">TRUE POS <b id="f-tp" style="color:var(--crit)">0</b></div>
+  <div class="ftc">FALSE POS <b id="f-fp" style="color:var(--warn)">0</b></div>
+  <div class="ftc">INCIDENTS <b id="f-inc">0</b></div>
+  <div class="ftc">MTTR <b id="f-mttr">—</b></div>
+  <div class="ftc">COST <b id="f-cost" style="color:var(--warn)">$0</b></div>
+  <div class="ftc">PHASE <b id="f-ph" style="color:var(--ph0)">PREPARE</b></div>
+</div>
+<script>
+// ══════════════════════════════════════════════════════════════
+// OT SecureOps — Full Engine
+// ══════════════════════════════════════════════════════════════
+
+const PHASES=[
+  {id:'prepare',  nm:'Preparation',   s:'PREP',   c:'#3b82f6', desc:'Baselines established. AI monitoring armed. IEC 62443 thresholds configured for all 8 OT assets.'},
+  {id:'detect',   nm:'Detection',     s:'DETECT', c:'#fbbf24', desc:'Anomalous telemetry observed. AI Z-score engine has raised an alert. Triage required.'},
+  {id:'analyze',  nm:'Analysis',      s:'ANALYZE',c:'#f97316', desc:'Deep analysis underway. Mapping attacker TTPs, blast radius, lateral movement paths, and IOCs.'},
+  {id:'contain',  nm:'Containment',   s:'CONTAIN',c:'#ef4444', desc:'Isolating affected assets. Emergency ACLs applied. Manual control activated where required.'},
+  {id:'eradicate',nm:'Eradication',   s:'ERAD',   c:'#8b5cf6', desc:'Removing threat artefacts. Patching exploited vulnerability. Restoring secure configuration baseline.'},
+  {id:'recover',  nm:'Recovery',      s:'RECOVER',c:'#10b981', desc:'Restoring device to production. Verifying telemetry baseline. 24hr elevated watchlist active.'},
+  {id:'post',     nm:'Post-Incident', s:'POST-IR',c:'#60a5fa', desc:'Generating report. Calculating MTTR. Updating detection rules. Sharing IOCs with FS-ISAC.'},
+];
+
+// ══ OT TOP 10 THREATS ══════════════════════════════════════════
+const T=[
+ {id:'t1',rank:1,tier:1,color:'#ef4444',
+  nm:'Unknown Assets & Unmanaged External Access',short:'Unknown Assets',
+  cvss:9.1,iec:'IEC 62443-2-1 SR 7.8',type:'ROGUE DEVICE',
+  vec:'Unauthorised Remote VPN Access',surf:'External Jump Host / OT VLAN',
+  dtMin:15,cost:18000,
+  ai:{z:2.2,sp:0.35,tpr:0.88,fpr:0.18},
+  devs:['plc-01','hmi-01'],
+  sim:s=>{s.value+=rnd(40,120)},
+  why:['Rogue device MAC not in asset register','VPN session outside approved maintenance window','PLC polling frequency anomaly: Z=3.8 (threshold 2.2)'],
+  fp_reasons:['Scheduled vendor maintenance window not logged in CMDB','New SCADA server provisioned without asset register update','Automated patch script running outside business hours'],
+  ph:{
+    detect:['Asset discovery scan finds unlisted device — MAC: DE:AD:BE:EF:01','Rogue VPN session logged: source 185.220.101.47 (TOR exit node)','AI Z-score=3.8 on PLC polling frequency (threshold: 2.2σ)','SIEM auto-raises P1 ticket — correlated across 3 log sources','Alert: Unrecognised device active on OT VLAN 20, Port SW1/Gi0/12'],
+    analyze:['Rogue device mapped to physical switch port SW1/Gi0/12','Device confirmed Modbus write access to PLC Unit 01 (coils 1-8)','Attacker IP: 185.220.101.47 confirmed TOR exit node — threat actor','Supplier schedule cross-check: NOT in approved remote-access window','Classification: External threat actor via compromised vendor credential'],
+    contain:['Block rogue MAC DE:AD:BE:EF:00:01 via switch ACL (immediate)','Terminate VPN session tunnel-ID 7743 — session killed at 14:32:17','Disable all unmanaged remote-access accounts (12 accounts suspended)','Enable port-security max 1 MAC per OT switch port — applied to 24 ports','CISO and OT plant manager notified — P1 escalation call at 14:35'],
+    eradicate:['Physical removal of rogue device — decommissioned and bagged for forensics','Revoke all unmanaged external credentials from PAM vault (14 accounts)','Deploy 802.1X NAC policy on all 48 OT switch ports — 0 exceptions','Patch jump-host CVE-2024-1234 (CVSS 9.8 priv escalation) — applied','Update NAC allowed-device whitelist — 1 new device class added'],
+    recover:['Re-verify all 6 active PLC/HMI connections — all nominal','CMDB device inventory updated — asset register version 3.2 published','Re-enable approved vendor access with mandatory MFA enforcement','48hr elevated monitoring period activated — anomaly threshold reduced 15%','Firewall baseline updated — 3 new ACL rules committed to repo'],
+    post:['Incident report IR-2025-001 filed — full timeline documented','IOCs shared with FS-ISAC: TOR IPs, rogue MAC, VPN fingerprint','Quarterly OT asset audit mandated — next audit scheduled 2025-04-01','IEC 62443-2-1 asset register updated with new rogue-device class','Self-healing control applied: Auto-block on new unregistered MAC detection'],
+  }
+ },
+ {id:'t2',rank:2,tier:1,color:'#ef4444',
+  nm:'Devices with Known Vulnerabilities',short:'Known CVEs',
+  cvss:8.8,iec:'IEC 62443-2-3 SR 7.6',type:'CVE EXPLOITATION (RCE)',
+  vec:'Remote Code Execution via CVE-2024-6387',surf:'SCADA Server / Process Historian',
+  dtMin:45,cost:42000,
+  ai:{z:2.5,sp:0.45,tpr:0.93,fpr:0.09},
+  devs:['scada-01','hist-01'],
+  sim:s=>{s.value=rnd(0.1,0.8)},
+  why:['IDS signature match: Shellshock-variant exploit payload','SCADA CPU spike to 99% — anomaly Z=4.1','Historian DB write errors: 847 in 60 seconds'],
+  fp_reasons:['Scheduled database maintenance causing high CPU','Security scanner running vulnerability assessment','Legitimate backup job triggering disk I/O anomaly'],
+  ph:{
+    detect:['IDS signature match: CVE-2024-6387 exploit payload detected in TCP stream','SCADA CPU: 99% sustained for 47 seconds — AI Z-score=4.1 (threshold 2.5)','Historian DB write errors: 847 failures in 60s — replication broken','EDR agent quarantine event: suspicious process "svchost32.exe" on SCADA-SVR-01','Memory scraping pattern detected in SCADA process list — mimikatz artefact'],
+    analyze:['Confirmed CVE-2024-6387 (OpenSSH RCE) — patch level: January 2022, 3 years unpatched','Exploit success confirmed: backdoor /tmp/.[hidden] created at 14:28:44','Lateral movement detected: SCADA-SVR-01 → ENG-WS-002 via SMB pass-the-hash','Attacker intent: process value manipulation — no data exfiltration confirmed','Safety impact: SAFE — ESD not triggered, process values within safe operating range'],
+    contain:['SCADA server isolated at OT DMZ firewall — zone ACL modified','Manual/local control activated on all 6 PLCs — operators on standby','C2 IP 91.108.56.22 blocked at perimeter — 2 firewall rules added','Remote historian replication suspended — local backup mode activated','Process safety engineer called to site — manual monitoring from 14:42'],
+    eradicate:['Emergency patch CVE-2024-6387 applied: OpenSSH upgraded 7.4 → 9.8','SCADA server re-imaged from 2025-01-15 gold image (verified SHA256)','Persistence removed: malicious cron job, /tmp/.cache backdoor, registry key','All 8 historian nodes scanned — lateral spread not confirmed on any node','12 service account credentials rotated — PAM vault updated'],
+    recover:['SCADA restored from clean backup — process integrity hash verified','Process setpoints validated against physical pressure gauges by engineer','Historian replication re-enabled with integrity monitoring active','Engineering WS returned under EDR — new sensor policy deployed','72hr elevated monitoring period — 2 analysts assigned to OT SOC'],
+    post:['CVE-2024-6387 incident report filed — NIST NVD cross-reference added','OT patch SLA published: Critical=7d, High=30d, Medium=90d, Low=180d','Virtual patching deployed via IPS Snort rules for SCADA segment','ICS-CERT advisory subscription activated for all 47 assets in register','Self-healing: Auto-patch workflow triggered for OpenSSH class across OT estate'],
+  }
+ },
+ {id:'t3',rank:3,tier:1,color:'#ef4444',
+  nm:'Inadequate Supply Chain Management',short:'Supply Chain Attack',
+  cvss:9.4,iec:'IEC 62443-2-4 SR 7.10',type:'TROJANISED FIRMWARE',
+  vec:'Malicious Firmware via Compromised Vendor Portal',surf:'RTU Field Units / Sensor Network',
+  dtMin:90,cost:75000,
+  ai:{z:2.0,sp:0.50,tpr:0.79,fpr:0.26},
+  devs:['rtu-01','snsr'],
+  sim:s=>{s.value+=rnd(20,80);s.value*=rnd(1.4,2.2)},
+  why:['Firmware SHA256 mismatch on RTU-01','Unexpected outbound C2 beacon every 300s','RTU command frequency +340% above baseline'],
+  fp_reasons:['Legitimate firmware update push from vendor during change window','New field device commissioning causing unusual traffic','Sensor calibration routine triggering anomalous readings'],
+  ph:{
+    detect:['Firmware integrity check FAIL: RTU-01 SHA256 does not match vendor published hash','Unexpected outbound connection: rtu-01 → 45.142.212.100:8443 every 300s (C2 beacon)','Vendor portal cross-check: update hash mismatch — PGP signature invalid','AI: RTU command frequency +340% above 30-day baseline — Z-score=4.8','Threat intel feed: Vendor XYZ portal confirmed compromised 72hrs ago (ICS-CERT alert)'],
+    analyze:['Firmware binary extracted and reverse-engineered using Ghidra (4hr analysis)','Backdoor identified: hardcoded C2 beacon, credential harvester, process value manipulator','Scope: RTU-01, RTU-02, sensor-net-A (3 devices received malicious update v3.2.1)','Physical process impact confirmed: RTU output values manipulated for 4hrs — minor deviation','Vendor notified: update server compromise via CVE-2024-9999 — 14 operators affected globally'],
+    contain:['RTU-01 and RTU-02 rolled back to firmware v2.1.4 (last known-good, verified hash)','C2 domains malware-c2[.]net and update-srv[.]co blocked at DNS and firewall (3 IPs)','All vendor remote access suspended — 0 active sessions remaining','Peer advisory sent to 14 operators using same Vendor XYZ RTU equipment','Out-of-band SCADA monitoring activated — field device telemetry via alternate path'],
+    eradicate:['Clean firmware v2.1.4 re-flashed to all 3 affected RTUs — integrity verified','All default and vendor-set credentials changed on 8 field devices','Firmware signing verification implemented — GPG key validation mandatory for all updates','Vendor update server handed to forensics team — isolated from production','All C2 persistence mechanisms removed from endpoints — clean bill of health'],
+    recover:['RTU process values verified against physical flow meters by field engineer','Sensor network communications restored — data integrity validation passed','Vendor remote access re-enabled with enhanced session recording and MFA','Digital signature verification now mandatory — integrated into CI/CD change pipeline','SBOM (Software Bill of Materials) updated — 3 new firmware versions catalogued'],
+    post:['Reported to ICS-CERT as supply chain incident SC-2025-001 — national disclosure','Vendor demanded incident report, remediation plan, and compensation within 72hrs','Firmware supply-chain security policy v1.0 published — mandatory for all vendors','Firmware hash verification added to Change Management workflow — mandatory gate','Self-healing: Automated firmware integrity scan every 6hrs added to monitoring stack'],
+  }
+ },
+ {id:'t4',rank:4,tier:1,color:'#ef4444',
+  nm:'Loss of Availability (OT DoS)',short:'Availability Attack',
+  cvss:8.6,iec:'IEC 62443-3-3 SR 7.1',type:'OT NETWORK FLOOD',
+  vec:'PROFINET/Modbus Protocol Broadcast Storm',surf:'OT Network Segment VLAN 20',
+  dtMin:120,cost:95000,
+  ai:{z:1.8,sp:0.60,tpr:0.96,fpr:0.07},
+  devs:['plc-01','hmi-01','rtu-01'],
+  sim:s=>{s.value=rnd(0,0.4)},
+  why:['OT VLAN bandwidth at 99.7%','3 PLC heartbeat timeouts simultaneously','All AI Z-scores anomalous at same moment'],
+  fp_reasons:['Large historian data backfill during maintenance window','Network switch firmware upgrade causing temporary congestion','Scheduled OT network audit with active scanning'],
+  ph:{
+    detect:['OT VLAN bandwidth: 99.7% — threshold breached, normal operating level: 35-40%','PLC heartbeat timeouts: PLC-01, PLC-02, PLC-03 unreachable for >30 seconds','HMI loses real-time data feed — all 12 display screens frozen at 14:28:00','Process historian data gaps: 847 missing data points over 4-minute window','AI: simultaneous Z-score anomaly on ALL 8 monitored devices — coordinated attack signature'],
+    analyze:['Flood source identified: HMI-Terminal-03 on OT VLAN (compromised internal host)','Protocol analysis: Modbus TCP broadcast storm — 48,000 malformed requests/second','Safety systems assessment: NOT affected — ESD on hardwired relay, not network dependent','Production downtime: 120 minutes continuous — estimated loss $95,000 at $792/minute','Parallel exfil check: packet capture analysis — no data leaving OT network boundary'],
+    contain:['OT network traffic shaping: rate limit 1,000 pkt/s applied at core switch','HMI-Terminal-03 isolated at Layer 2 — VLAN reassignment to quarantine VLAN 99','PLCs switched to local autonomous fallback mode — engineers manual-monitoring all 6 units','Emergency shutdown NOT required — process holding stable in local mode','Flood source MAC AA:BB:CC:DD:EE:FF blocked — attack traffic dropped to zero at 14:51'],
+    eradicate:['HMI-03 re-imaged — Triton-variant malware removed, forensic copy preserved','Modbus broadcast whitelist deployed: only 3 authorised Modbus master IPs permitted','Protocol stack vulnerability patched: Modbus TCP overflow (vendor patch 2025-001) applied','Additional network DMZ created: HMI segment now isolated from PLC VLAN with OT firewall','Modbus/PROFINET deep packet inspection (DPI) rules enabled on all OT firewall interfaces'],
+    recover:['OT network restored incrementally — 6 segments re-enabled over 45 minutes','All 6 PLC setpoints and process state verified by control room engineers','Process historian data collection restarted — 4-minute gap backfilled from local buffers','All 12 HMI screens validated showing live process data — operator sign-off obtained','Safety system integrity checks completed — ESD reset confirmed operational'],
+    post:['Production loss report: $95,000 — root cause: flat OT network without segmentation','Network topology redesign commissioned — IEC 62443-3-2 segmentation project, budget $45k','Redundant OT network paths approved by board — implementation planned Q2 2025','OT network resilience exercise scheduled — tabletop + live failover test, date: 2025-05-01','Self-healing: Auto rate-limit on OT VLAN flood detection (>5,000 pkt/s) deployed'],
+  }
+ },
+ {id:'t5',rank:5,tier:2,color:'#f97316',
+  nm:'Insufficient Access Control',short:'Access Control Failure',
+  cvss:8.1,iec:'IEC 62443-3-3 SR 1.1',type:'LATERAL MOVEMENT',
+  vec:'Credential Stuffing then Pass-the-Hash',surf:'IT/OT DMZ Boundary',
+  dtMin:20,cost:22000,
+  ai:{z:2.3,sp:0.40,tpr:0.85,fpr:0.22},
+  devs:['hmi-01','scada-01'],
+  sim:s=>{s.value+=rnd(15,45)},
+  why:['847 failed logins/minute on HMI terminal','IT→OT DMZ crossing from non-authorised workstation','Login outside business hours from unknown location'],
+  fp_reasons:['Automated IT vulnerability scanner probing OT boundary','Patch management system authenticating to OT management interface','Developer testing new monitoring integration from personal laptop'],
+  ph:{
+    detect:['Failed logins: 847/minute on HMI-Terminal-01 — threshold: 10/min (alert fired)','Successful auth: shared password "Scada2020!" on 3 service accounts — password reuse','IT→OT crossing: workstation IT-PC-023 (10.0.5.47) → OT VLAN 20 — policy violation','SCADA login from non-engineering-workstation IP at 03:47 UTC on Sunday','AI: user behaviour anomaly — unusual hours, geographic anomaly, new device fingerprint'],
+    analyze:['Credential source: spear-phishing email received by engineer J.Smith 6 days prior','Lateral movement path: IT LAN → IT/OT IDMZ (hop 1) → OT HMI (hop 2) → SCADA (hop 3)','Attacker scope: HMI read/write access, SCADA read-only — no setpoint changes confirmed','Reconnaissance only: attacker mapping OT network, downloading process P&ID diagrams','Backdoor account found: svc_backup_old — inactive 2 years, still active in OT AD'],
+    contain:['Force password reset on all 47 OT domain accounts — effective immediately','Terminate all 12 active OT remote sessions — session tokens invalidated','Account lockout policy enforced: 5 failed attempts → 30-minute lockout — applied GPO','krbtgt password rotated twice — all Kerberos tickets invalidated across OT domain','MFA enforcement activated for all OT system logins — no exceptions permitted'],
+    eradicate:['Backdoor account svc_backup_old permanently removed from OT Active Directory','All compromised NTLM hashes invalidated — full Kerberos re-authentication required','CyberArk PAM deployed for all OT privileged accounts — 34 accounts enrolled','Just-in-time access model implemented for OT maintenance windows — 4hr max sessions','Default vendor passwords removed from all 23 OT devices — verified on each unit'],
+    recover:['OT user access restored with new credentials + MFA tokens — 47 users re-enrolled','Role-based access permissions re-validated — 12 roles reviewed, 3 overprivileged accounts fixed','CyberArk PSM session recording activated — all privileged sessions now recorded','MFA rollout verified on all 8 OT workstations — biometric + TOTP dual factor','Access control matrix v2.1 published and committed to CMDB'],
+    post:['47 OT accounts full audit — 8 stale accounts removed, 3 over-privileged roles fixed','Quarterly access review process mandated in security policy — calendar invite sent','Deception technology deployed: honeypot PLC on OT VLAN 20 with alert on first access','Phishing + credential hygiene training completed by all 12 OT operators this week','Self-healing: Auto-lock OT account on after-hours login attempt from new device'],
+  }
+ },
+ {id:'t6',rank:6,tier:2,color:'#f97316',
+  nm:'Missing Incident Detection / Reaction',short:'No Detection Capability',
+  cvss:7.8,iec:'IEC 62443-2-1 SR 6.2',type:'APT LONG DWELL (207 DAYS)',
+  vec:'Advanced Persistent Threat (SANDWORM TTPs)',surf:'Engineering Workstation / Historian',
+  dtMin:5,cost:140000,
+  ai:{z:3.0,sp:0.30,tpr:0.72,fpr:0.32},
+  devs:['eng-ws','hist-01'],
+  sim:s=>{s.value+=rnd(5,18)},
+  why:['RAT process discovered during threat hunt (dormant 207 days)','Historian shows subtle 0.3% daily process drift over 47 days','C2 beaconing via DNS tunnelling every 3600s'],
+  fp_reasons:['Authorised penetration test from internal red team','IT helpdesk remote support tool (TeamViewer) flagging as RAT-like','Backup agent communicating to cloud storage on unusual port'],
+  ph:{
+    detect:['Threat hunt discovers Emotet-variant RAT on eng-ws-002 — dormant for 207 days','Historian retrospective: subtle process setpoint drift 0.3%/day over 47 days — missed in real-time','AI retrospective analysis: anomaly Z-score=2.8 detected 47 days ago — fell below alert threshold of 3.0','C2 beaconing: eng-ws-002 → 185.220.x.x via DNS tunnelling every 3600s — covert channel','Threat intel alert: SANDWORM-linked APT campaign confirmed targeting OT sector operators'],
+    analyze:['Forensic timeline: initial compromise via spear-phish 207 days ago (weaponised PDF)','APT exfiltrated: 3 P&ID schematics, 2 process control diagrams, credential store partial dump','C2 infrastructure: 3 domains (sinkholed), 2 fast-flux IPs, DNS over HTTPS exfil channel','Attacker TTPs: T1566 Phishing, T1059 Cmd Execution, T1041 Exfil Over C2 (MITRE ATT&CK ICS)','Historian integrity: 3 process setpoints modified by ±0.3% over 47 days — all within safe range'],
+    contain:['Engineering workstation isolated — network cable physically disconnected at 09:17','APT C2 domains and IPs blocked at all 4 egress firewall points — DNS sinkholing active','Compromised account svc_eng_001 suspended — all tokens invalidated immediately','Full packet capture activated: 10Gbps passive tap on OT segment — 30-day retention','24/7 SOC monitoring activated for OT segment — Tier 3 analyst assigned from 09:30'],
+    eradicate:['RAT and 4 persistence mechanisms removed: reg key, schtask, dll-hijack, WMI subscription','Eng workstation re-imaged from verified gold image — clean forensic copy preserved','All 34 credentials accessible during 207-day dwell period rotated — PAM vault updated','OT NDR (Darktrace) deployed across 3 OT network segments — ML baselining started','Application whitelisting (Carbon Black) deployed on all 6 OT workstations — 0 exceptions'],
+    recover:['Engineering WS rebuilt: hardened image + EDR agent + AppWhitelist + MFA token','All 3 modified process setpoints audited and corrected — physical plant cross-reference','Continuous OT monitoring platform operational — 7-day baseline learning period active','ICS protocol anomaly detection enabled (Claroty) — all 8 devices now profiled','Historian data integrity validated — 3 corrections committed, audit trail preserved'],
+    post:['Full threat hunt commissioned: 14-day scope across entire OT/IT estate — 2 analysts','OT-specific SIEM (LogRhythm) procurement approved — budget $120k, deployment Q3 2025','24/7 OT-SOC established — 3 dedicated FTE analysts, escalation path defined','IR runbooks created for all 10 OT threat scenarios — reviewed and signed off by CISO','Self-healing: Automated behavioural baselining + drift detection added for all OT hosts'],
+  }
+ },
+ {id:'t7',rank:7,tier:2,color:'#f97316',
+  nm:'Broken Zones and Conduits Design',short:'Broken Segmentation',
+  cvss:8.3,iec:'IEC 62443-3-2 SR 5.1',type:'ZONE BOUNDARY BREACH',
+  vec:'Flat Network Traversal — Missing IDMZ',surf:'IT/OT Network Boundary (No DMZ)',
+  dtMin:30,cost:35000,
+  ai:{z:2.1,sp:0.45,tpr:0.87,fpr:0.15},
+  devs:['plc-01','rtu-01','snsr'],
+  sim:s=>{s.value+=rnd(30,90)},
+  why:['Cross-zone traffic: Zone 3→Zone 1 policy violation','PLC Modbus write from unauthorised source IP','Lateral scan across all 6 OT VLANs detected'],
+  fp_reasons:['Network discovery scan by IT team not communicated to OT team','New SCADA server being commissioned communicating across zones','IT monitoring tool polling OT devices for asset inventory'],
+  ph:{
+    detect:['Cross-zone traffic detected: Zone 3 (IDMZ) → Zone 1 (PLC Level) — conduit policy violated','PLC-01 receives Modbus write command from 10.20.30.44 (not in authorised master list of 3 IPs)','Firewall log: 847 conduit policy rule violations in 60 seconds — alert severity: CRITICAL','AI: lateral scan pattern across 6 OT VLANs — subnet sweep signature Z-score=3.4','NIDS alert: Modbus write to coil register 0x0001 from source: 10.20.30.44 (IT network)'],
+    analyze:['Network map comparison: actual topology differs from documented IEC 62443 zone design','Critical gap identified: missing Industrial DMZ (IDMZ) between IT Level 3 and OT Level 2','Unauthorised commands confirmed: 3 Modbus write operations — Pump 3 coil toggled twice','Physical process impact: MINOR — Pump 3 cycled on/off twice, no equipment damage confirmed','Attacker pivot chain: IT laptop → flat OT network (no segmentation barrier)'],
+    contain:['Emergency VLAN isolation: OT Zone 1 and Zone 2 physically segmented at core switch','Cross-zone traffic blocked: 22 ACL entries added to core switch — immediate effect','Modbus restricted to 3 authorised master IPs only — source-IP ACL deployed at OT firewall','Manual control activated for Pump 3 — field operator dispatched at 14:33','OT firewall emergency rules committed — logged and peer-reviewed within 15 minutes'],
+    eradicate:['OT network redesigned per IEC 62443-3-2 zone model — 5 zones, 4 conduits defined','Dedicated OT firewall deployed at Zone 1/2 boundary (Fortinet FortiGate OT) — 4hr installation','Industrial DMZ (IDMZ) created: OT Historian, SCADA, and HMI proxied through DMZ','All implicit trust relationships removed — zero-trust OT model with deny-all default','Modbus application-layer DPI filtering enabled — only whitelisted function codes permitted'],
+    recover:['Inter-zone communications restored via hardened IDMZ conduits — 3-stage validation','PLC-01 states verified post-isolation — all 8 setpoints confirmed nominal by engineer','HMI data feeds re-enabled through IDMZ Modbus proxy — response time <2ms confirmed','New firewall ruleset tested in staging environment first — 0 false blocks observed','Network diagrams updated to v3.1 — Purdue Model alignment documented and published'],
+    post:['IEC 62443-3-2 zone risk assessment commissioned (£25,000) — external auditor engaged','Purdue Model-aligned OT architecture document v1.0 published — distributed to all stakeholders','Conduit security policy defined: quarterly review, change management mandatory for ACL changes','Continuous network topology monitoring deployed via Claroty — real-time zone violation alerts','Self-healing: Auto-VLAN quarantine on zone policy violation detection — rule deployed'],
+  }
+ },
+ {id:'t8',rank:8,tier:2,color:'#f97316',
+  nm:'Missing Awareness (Human Factor)',short:'Spear Phishing / USB',
+  cvss:7.5,iec:'IEC 62443-2-1 SR 2.4',type:'SPEAR PHISHING → MACRO',
+  vec:'Weaponised Excel Attachment via Spear Phish',surf:'OT Engineering Workstation',
+  dtMin:25,cost:28000,
+  ai:{z:2.4,sp:0.38,tpr:0.82,fpr:0.24},
+  devs:['eng-ws','hmi-01'],
+  sim:s=>{s.value+=rnd(10,35)},
+  why:['Macro-enabled Excel opened — PowerShell child process spawned','USB mass storage on air-gapped workstation at 14:32','Mimikatz artefact detected in process memory'],
+  fp_reasons:['IT helpdesk staff running authorised PowerShell diagnostic script','Legitimate Excel automation tool used by engineering team running macros','USB device used by field engineer to transfer approved configuration file'],
+  ph:{
+    detect:['Email gateway alert: macro-enabled Excel "PLC_Firmware_Update_v4.2.xlsx" opened by J.Smith','EDR alert: EXCEL.EXE → PowerShell → encoded command — suspicious child process chain','USB mass storage device inserted on air-gapped eng-ws-003 at 14:32:17 (policy violation)','AI: new process "svchost32.exe" spawned outside approved application whitelist','Credential harvester (Mimikatz variant) detected in LSASS process memory dump at 14:38'],
+    analyze:['Phishing email from spoofed domain siemens-update[.]com — sent to 8 OT engineers','Payload: macro downloads Cobalt Strike beacon, establishes persistence via scheduled task','USB auto-run blocked (policy active) — lateral spread to adjacent host prevented','HMI login using J.Smith credentials 4hrs after phishing event — access confirmed','Engineer interview: "I thought it was a legitimate Siemens firmware update notification"'],
+    contain:['Eng-ws-002 isolated — network connection physically removed at 14:41','Phishing domain siemens-update[.]com DNS-sinkholed company-wide — all 450 users protected','USB ports disabled on all 23 OT workstations via AD GPO — effective within 5 minutes','Forced logout: all active OT sessions for J.Smith across 6 systems terminated','Company-wide phishing alert email sent to all 450 staff by CISO at 15:00'],
+    eradicate:['Cobalt Strike beacon and 3 persistence mechanisms removed — schtask, reg key, dll','Workstation re-imaged from hardened gold image v2.3 — 45-minute rebuild completed','Compromised credentials revoked — J.Smith issued new OT domain account with MFA','All IOCs blocked at perimeter: 2 C2 IPs, 1 phishing domain, 2 file hashes (SHA256)','Proofpoint email sandboxing deployed for all OT staff inboxes — retroactive scan of 30 days'],
+    recover:['Workstation rebuilt with approved software + AppWhitelist + Carbon Black EDR','J.Smith re-enrolled with MFA (TOTP + push notification) on new hardened account','DLP USB device control solution deployed company-wide — hardware serial whitelist enforced','0 process changes confirmed during compromise period — operations engineer sign-off','All 23 OT workstations hardened: USB boot disabled in BIOS, BIOS password set'],
+    post:['Mandatory phishing awareness training for all 450 staff — 2hr module, completion tracked','Simulated phishing campaign scheduled quarterly — results reported to CISO monthly','OT-specific Acceptable Use Policy v2.0 published — signed by all staff by end of month','USB policy: hardware write-blockers deployed in all OT areas, personal devices banned','Self-healing: Auto-isolate workstation on macro execution detected in OT domain context'],
+  }
+ },
+ {id:'t9',rank:9,tier:2,color:'#f97316',
+  nm:'Insecure ICS Protocols',short:'Insecure Protocols',
+  cvss:8.0,iec:'IEC 62443-3-3 SR 3.1',type:'MODBUS REPLAY ATTACK',
+  vec:'Protocol Replay — Duplicate Modbus Transaction IDs',surf:'OT Fieldbus / Modbus TCP Bus',
+  dtMin:40,cost:48000,
+  ai:{z:1.9,sp:0.55,tpr:0.91,fpr:0.12},
+  devs:['plc-01','rtu-01'],
+  sim:s=>{s.value=s.value>50?rnd(0,8):rnd(90,160)},
+  why:['IDS: 847 duplicate Modbus transaction IDs in 60s','PLC coil changed without corresponding HMI command','DNP3 master from non-authorised IP (10.20.30.99)'],
+  fp_reasons:['Modbus master reconnection after network dropout causing retransmissions','Test bench equipment connected to OT network without notification','SCADA failover switching between primary and backup master causing duplicate IDs'],
+  ph:{
+    detect:['IDS signature: Modbus TCP replay — 847 duplicate transaction IDs 0x1A2B in 60 seconds','PLC-01 coil output 0x0001 changed without corresponding command in HMI historian','DNP3 traffic from 10.20.30.99 — not in authorised DNP3 master list (authorised: 3 IPs)','AI: PLC register write frequency +840% above 30-day baseline — Z-score=4.2','Process engineer alarm: Valve V-104 opened without operator action at 14:29:03'],
+    analyze:['PCAP analysis: Modbus replay confirmed — attacker positioned as MITM on OT VLAN','Switch ARP table poisoned — attacker intercepted traffic between HMI-01 and PLC-01','Affected registers: coil 0x0001 (Pump 1 on/off), coil 0x0004 (Valve V-104 open/close)','Physical impact: Pump 1 cavitated for 22 minutes — minor bearing wear, maintenance required','Root cause: Modbus/TCP has no authentication — designed 1979, no security extensions in use'],
+    contain:['Modbus write permissions disabled — all PLCs forced to read-only mode immediately','PLCs switched to manual/local control — 4 engineers dispatched to control room','Source IP 10.20.30.99 blocked at OT firewall — traffic dropped to zero at 14:38','Strict source-IP filtering applied: only 3 authorised Modbus masters permitted to write','Field engineer manually closed Valve V-104 and verified Pump 1 state at 14:41'],
+    eradicate:['OT firewall Modbus DPI deployed — whitelist: only READ (FC01-04) and specific WRITE (FC05,15)','Modbus/TCP Security (MBAP authentication, RFC-3720) implemented on all Modbus endpoints','DNP3 replaced with DNP3-SA (Secure Authentication v5) on all 4 RTU units — vendor coordinated','Sequence number validation + rolling window check added at OT application-layer firewall','Serial Modbus isolated onto dedicated media converter — no IP bridge, air-gap maintained'],
+    recover:['PLC setpoints restored to engineer-validated values — process engineer sign-off form signed','HMI control re-enabled through authenticated Modbus channel — response time validated <5ms','All RTU output states verified against physical pressure/flow readings by field engineers','Historian polling restarted with Modbus command anomaly monitoring (Claroty rules active)','Protocol conformance test executed: all 8 Modbus devices passed — certification stored'],
+    post:['Legacy protocol register published: 34 protocols documented with security risk ratings','Protocol upgrade roadmap created: Modbus→OPC-UA 2026, DNP3→DNP3-SA 2025 (complete)','Protocol whitelist deployed on all 4 OT firewalls — non-whitelisted protocols auto-blocked','OPC-UA Security evaluation commissioned — migration feasibility study, budget approved $15k','Self-healing: Automatic Modbus read-only mode triggered on anomalous write pattern detected'],
+  }
+ },
+ {id:'t10',rank:10,tier:3,color:'#eab308',
+  nm:'Missing Hardening',short:'Missing Hardening',
+  cvss:7.2,iec:'IEC 62443-3-3 SR 7.6',type:'DEFAULT CONFIG EXPLOIT',
+  vec:'Default Credentials + 23 Open Unnecessary Services',surf:'PLC Web UI / SCADA SSH / HMI RDP',
+  dtMin:10,cost:12000,
+  ai:{z:2.6,sp:0.35,tpr:0.80,fpr:0.27},
+  devs:['plc-01','hmi-01','scada-01'],
+  sim:s=>{s.value+=rnd(8,28)},
+  why:['Default admin:admin credentials active on SCADA web console','23 open ports on SCADA server (policy: max 3)','PLC configuration changed without change management ticket'],
+  fp_reasons:['Security auditor running authorised CIS benchmark assessment','New monitoring agent deployment opening temporary management ports','Pre-approved change window for SCADA software upgrade'],
+  ph:{
+    detect:['Vulnerability scan: PLC web server active on port 80 — not in approved services list','Login SUCCESS with default credentials admin:admin on SCADA web console at 14:22','Network scan reveals 23 open ports on SCADA-SVR-01 — policy maximum is 3 ports','AI: PLC-01 configuration change at 14:24 — no corresponding change management ticket in ITSM','SSH brute-force success: vendor default RSA key accepted on HMI-Terminal-01'],
+    analyze:['23 unnecessary services enumerated: FTP(21), Telnet(23), HTTP(80), SNMP v1(161), RDP(3389), etc.','Default credentials confirmed active on 7 of 8 monitored OT devices — never changed at commissioning','Attacker actions post-login: read process config, download ladder logic backup (12MB)','CIS ICS Benchmark gap analysis automated scan: 67% non-compliant (baseline: 95% target)','No hardening performed since commissioning in 2019 — 6 years of security debt accumulated'],
+    contain:['PLC web server service stopped immediately — netstat confirms port 80 closed','Default credentials changed on all 7 affected devices — PAM vault updated in real-time','20 unnecessary ports blocked at OT host-based firewall and network firewall — dual layer','Telnet/FTP disabled on all OT devices via vendor CLI — verified on each unit','SCADA-SVR-01 and HMI-01 isolated for emergency hardening sprint — backup comms active'],
+    eradicate:['CIS OT Benchmark hardening applied to all 8 devices — 4-hour engineering sprint','23 unnecessary services disabled and removed — services.msc and systemctl verified','Host-based firewall enabled on SCADA-SVR-01 (Windows Advanced Firewall, GPO-managed)','Change management mandatory gate added to ITSM for ALL OT configuration changes','Centrally managed audit logging enabled on all 8 OT devices — ingested into SIEM'],
+    recover:['Hardened baseline configuration deployed — Nessus post-scan: 0 critical, 2 medium findings','Process functionality tested by engineer post-hardening — all controls confirmed operational','Only required services re-enabled: OPC-UA(4840), HTTPS(443), SSH restricted(22) — 3 ports','Attack surface reduced from 23 to 3 open ports — 87% reduction documented','Hardened configuration baseline stored as golden image v3.0 in CMDB'],
+    post:['Tenable.OT automated compliance scanning deployed — weekly reports to SOC','OT Device Hardening Standard v1.0 published — mandatory for all new deployments','Vendor hardening checklist now mandatory gate at device commissioning — change process updated','Quarterly CIS Benchmark compliance audit scheduled — first audit 2025-04-01','Self-healing: Auto-disable default credentials on new device join to OT network'],
+  }
+ },
+];
+
+// ══ DEVICES ════════════════════════════════════════════════════
+const DEVS=[
+  {id:'plc-01', nm:'PLC Unit 01',      ic:'⚙',  un:'Hz',    nl:[48,52],   c:'#3b82f6'},
+  {id:'hmi-01', nm:'HMI Terminal',     ic:'🖥',  un:'req/s', nl:[1,8],     c:'#fbbf24'},
+  {id:'scada-01',nm:'SCADA Server',    ic:'🖧',  un:'CPU%',  nl:[15,55],   c:'#f97316'},
+  {id:'rtu-01', nm:'RTU Field Unit',   ic:'📡',  un:'mA',    nl:[4,20],    c:'#ef4444'},
+  {id:'hist-01',nm:'Process Historian',ic:'💾',  un:'WPS',   nl:[10,80],   c:'#8b5cf6'},
+  {id:'eng-ws', nm:'Engineering WS',   ic:'💻',  un:'CPU%',  nl:[10,60],   c:'#10b981'},
+  {id:'snsr',   nm:'Sensor Network',   ic:'🔌',  un:'V',     nl:[220,240], c:'#60a5fa'},
+  {id:'fw-ot',  nm:'OT Firewall',      ic:'🛡',  un:'pkt/s', nl:[100,800], c:'#f97316'},
+];
+
+// ══ GLOBAL STATE ═══════════════════════════════════════════════
+const G={
+  alerts:[], incidents:[], controls:[], ftDB:[],
+  aiM:{},  // per-threat AI model
+  M:{totalAlerts:0,tp:0,fp:0,mttdSum:0,mttrSum:0,mttdN:0,mttrN:0,cost:0,dt:0,risk:12,incidents:0},
+  CD:{vol:Array(20).fill(0),tpr:Array(20).fill(0),fpr:Array(20).fill(0),
+      mttd:Array(20).fill(0),mttr:Array(20).fill(0),cost:Array(20).fill(0),risk:Array(20).fill(12)},
+  ds:{},
+  IR:{active:false,threat:null,phIdx:0,phStart:Date.now(),incStart:null,
+      pbPhIdx:0,pbStIdx:0,pendAlert:null,mode:'auto'},
+  tuning:{show:false,tid:null},
+  aiSel:null, // selected threat for AI page
+  spd:900, tid:null,
+  alertId:0,
+};
+
+T.forEach(t=>{
+  G.aiM[t.id]={
+    z:t.ai.z, sp:t.ai.sp,
+    tpr:t.ai.tpr, fpr:t.ai.fpr,
+    tp:0, fp:0, tune:0, fpStreak:0,
+    hist:[],  // {ts,alertId,cls,conf,mttd,mttr,dt,cost,fpReason,ctrl}
+  };
+});
+DEVS.forEach(d=>{
+  G.ds[d.id]={v:rnd(...d.nl),h:Array(20).fill(0).map(()=>rnd(...d.nl)),
+    status:'ok',aff:false,iso:false,rec:false,rcvd:false};
+});
+
+// ══ CHARTS ════════════════════════════════════════════════════
+const CH={};
+function mkCh(id,type,lbls,dsets,opts={}){
+  const ctx=document.getElementById(id);
+  if(!ctx)return null;
+  if(CH[id]){CH[id].destroy();delete CH[id];}
+  const def={responsive:true,animation:{duration:200},
+    plugins:{legend:{labels:{color:'#3f5870',font:{size:9}},display:true,...(opts.lg||{})}},
+    scales:{
+      x:{ticks:{color:'#3f5870',font:{size:8}},grid:{color:'rgba(255,255,255,.03)'},...(opts.xs||{})},
+      y:{ticks:{color:'#3f5870',font:{size:8}},grid:{color:'rgba(255,255,255,.03)'},...(opts.ys||{})},
+    },...opts};
+  delete def.lg;delete def.xs;delete def.ys;
+  CH[id]=new Chart(ctx,{type,data:{labels:lbls,datasets:dsets},options:def});
+  return CH[id];
+}
+function updCh(id,arrs){
+  if(!CH[id])return;
+  arrs.forEach((d,i)=>{if(CH[id].data.datasets[i])CH[id].data.datasets[i].data=[...d];});
+  CH[id].update('none');
+}
+const TS=()=>Array(20).fill('').map((_,i)=>i===19?'now':`-${19-i}`);
+
+function initCharts(){
+  mkCh('ch-vol','line',TS(),[ds_line('#3b82f6','Alert Vol',G.CD.vol,true)]);
+  mkCh('ch-tpfp','line',TS(),[ds_line('#10b981','TP%',G.CD.tpr),ds_line('#f59e0b','FP%',G.CD.fpr,false,true)]);
+  mkCh('ch-ttr','line',TS(),[ds_line('#fbbf24','MTTD',G.CD.mttd),ds_line('#3b82f6','MTTR',G.CD.mttr,false,true)]);
+  mkCh('ch-cost','line',TS(),[ds_line('#ef4444','Cost$',G.CD.cost,true)]);
+  mkCh('ch-ai-acc','line',TS(),[ds_line('#10b981','Accuracy%',Array(20).fill(0)),ds_line('#f59e0b','FP%',Array(20).fill(0),false,true)]);
+  mkCh('ch-ai-vol','bar',T.map(t=>t.short.substring(0,8)),[
+    {label:'Alerts',data:T.map(()=>0),backgroundColor:T.map(t=>t.color+'99'),borderColor:T.map(t=>t.color),borderWidth:1}
+  ],{lg:{display:false}});
+  mkCh('ch-ai-fpr','line',TS(),[ds_line('#f59e0b','FP%',Array(20).fill(0))],{lg:{display:false}});
+  mkCh('ch-ciso-risk','line',TS(),[ds_line('#ef4444','Risk',G.CD.risk,true)]);
+  mkCh('ch-ciso-cost','line',TS(),[ds_line('#f97316','Cost$',G.CD.cost,true)]);
+}
+function ds_line(c,lbl,d,fill=false,dash=false){
+  return{label:lbl,data:[...d],borderColor:c,backgroundColor:c+'18',
+    fill,tension:.4,pointRadius:1.5,borderWidth:1.8,
+    borderDash:dash?[4,3]:[],pointBackgroundColor:c};
+}
+
+// ══ PAGE SWITCHING ════════════════════════════════════════════
+function goPage(id,btn){
+  document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));
+  document.getElementById('pg-'+id).classList.add('on');
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));
+  if(btn)btn.classList.add('on');
+  if(id==='ai'){renderAI();return;}
+  if(id==='ciso'){renderCISO();return;}
+}
+
+// Clock
+setInterval(()=>{document.getElementById('tb-clk').textContent=new Date().toLocaleTimeString();},1000);
+
+// ══ ALERT ENGINE ══════════════════════════════════════════════
+function mkAlert(tid){
+  const t=T.find(x=>x.id===tid);
+  const m=G.aiM[tid];
+  const conf=Math.min(99,Math.round(68+Math.random()*29));
+  const a={
+    id:'ALT-'+String(++G.alertId).padStart(4,'0'),
+    tid, time:new Date(), status:'nd',
+    conf, cls:null, mttd:null, mttr:null, cost:null, dt:null,
+    ctrl:[], fpReason:null,
+  };
+  G.alerts.unshift(a);
+  G.M.totalAlerts++;
+  updSOCBadge();renderFeed();updSOCM();
+  return a;
+}
+
+function triageDecide(cls){
+  const a=G.IR.pendAlert;
+  const ov=document.getElementById('triage-ov');
+  if(!a)return;
+  ov.classList.remove('show');
+  a.cls=cls; a.status=cls;
+  const t=G.IR.threat;
+  const m=G.aiM[t.id];
+  el('ioc-cl').textContent=cls==='tp'?'TRUE POSITIVE':'FALSE POSITIVE';
+  el('ioc-cl').style.color=cls==='tp'?'var(--crit)':'var(--warn)';
+  if(cls==='tp'){
+    G.M.tp++; m.tp++; m.fpr=Math.max(0.02,m.fpr-0.03); m.tpr=Math.min(0.99,m.tpr+0.01);
+    m.fpStreak=0;
+    const detT=Math.round((Date.now()-G.IR.incStart)/1000);
+    a.mttd=detT; G.M.mttdSum+=detT; G.M.mttdN++;
+    continueIR();
+  } else {
+    G.M.fp++; m.fp++; m.fpStreak++;
+    m.fpr=Math.min(0.92,m.fpr+0.05); m.tpr=Math.max(0.4,m.tpr-0.02);
+    // pick a random legitimate reason for this FP
+    a.fpReason=t.fp_reasons[m.fp%t.fp_reasons.length];
+    m.hist.push({ts:new Date().toLocaleString(),alertId:a.id,cls:'FP',conf:a.conf,
+      mttd:null,mttr:null,dt:null,cost:null,fpReason:a.fpReason,ctrl:0});
+    irEv('detect',`⚠ Alert <b>${a.id}</b> classified FALSE POSITIVE by analyst`,
+      `Reason: ${a.fpReason} · AI confidence was ${a.conf}% · FP streak for this threat: ${m.fpStreak}`);
+    irEv('post',`📝 Legitimate activity pattern added to AI baseline for fine-tuning`,
+      `FP rate for ${t.short} is now ${Math.round(m.fpr*100)}%`);
+    if(m.fpStreak>=2) suggestTuning(t.id);
+    else { setTimeout(()=>resetIR(),1200); }
+  }
+  updSOCM();renderFeed();updAICharts();
+}
+
+function continueIR(){
+  const t=G.IR.threat;
+  const S=G.spd;
+  t.devs.forEach(id=>{if(G.ds[id])G.ds[id].aff=true;});
+  irEv('analyze','🔍 True Positive confirmed — proceeding through full IR lifecycle');
+
+  // Define the full phase sequence with before/after device-state hooks
+  const sequence=[
+    {key:'analyze', phIdx:2, before:null, after:null},
+    {key:'contain',  phIdx:3,
+      before:()=>t.devs.forEach(id=>{if(G.ds[id]){G.ds[id].iso=true;G.ds[id].aff=false;}}),
+      after:null},
+    {key:'eradicate',phIdx:4, before:null, after:null},
+    {key:'recover',  phIdx:5,
+      before:()=>t.devs.forEach(id=>{
+        if(G.ds[id]){
+          G.ds[id].iso=false;G.ds[id].rec=true;
+          const d=DEVS.find(x=>x.id===id);
+          if(d)G.ds[id].v=rnd(...d.nl);
+        }
+      }),
+      after:()=>t.devs.forEach(id=>{if(G.ds[id]){G.ds[id].rec=false;G.ds[id].rcvd=true;}})},
+    {key:'post', phIdx:6, before:null,
+      after:()=>{
+        const totalT=Math.round((Date.now()-G.IR.incStart)/1000);
+        const a=G.IR.pendAlert;
+        a.mttr=totalT; a.cost=t.cost+Math.round(Math.random()*t.cost*0.25);
+        a.dt=t.dtMin*60+Math.round(Math.random()*300);
+        a.status='cl'; a.cls='tp';
+        G.M.mttrSum+=totalT; G.M.mttrN++;
+        G.M.cost+=a.cost; G.M.dt+=a.dt; G.M.incidents++;
+        applyControl(t,a);
+        irEv('post',`🟢 INCIDENT CLOSED — ${t.short}`,
+          `MTTR: ${ftm(totalT)} · Cost: $${fnum(a.cost)} · Downtime: ${ftm(a.dt)}`);
+        G.aiM[t.id].hist.push({ts:new Date().toLocaleString(),alertId:a.id,cls:'TP',
+          conf:a.conf,mttd:a.mttd,mttr:totalT,dt:a.dt,cost:a.cost,fpReason:'—',ctrl:a.ctrl.length});
+        G.IR.active=false;
+        el('btn-launch').disabled=false;
+        el('ir-act-cnt').textContent='0 ACTIVE';
+        document.getElementById('f-mttr').textContent=ftm(Math.round(G.M.mttrSum/G.M.mttrN));
+        updSOCM();renderFeed();updAICharts();renderCISO();
+      }
+    },
+  ];
+
+  // Run phases sequentially — index into sequence array
+  function runSeq(seqIdx){
+    if(seqIdx>=sequence.length) return;
+    const phase=sequence[seqIdx];
+    // Run before-hook (device state changes before this phase)
+    if(phase.before) phase.before();
+    irSetPh(phase.phIdx);
+    const steps=t.ph[phase.key]||[];
+
+    function onPhaseDone(){
+      // Run after-hook
+      if(phase.after) phase.after();
+      // Small delay then next phase
+      setTimeout(()=>runSeq(seqIdx+1), G.spd*0.3);
+    }
+
+    if(G.IR.mode==='auto'){
+      autoSteps(phase.key, steps, 0, onPhaseDone);
+    } else {
+      manualSteps(phase.key, phase.phIdx, steps, 0, onPhaseDone);
+    }
+  }
+
+  // Auto mode: steps fire with timeout
+  function autoSteps(key, steps, si, done){
+    if(si>=steps.length){done();return;}
+    irEv(key, steps[si]);
+    irBuildPB(key, si);
+    updIRDevs();
+    setTimeout(()=>autoSteps(key, steps, si+1, done), G.spd*0.65);
+  }
+
+  // Manual mode: show step, wire button to advance
+  function manualSteps(key, phIdx, steps, si, done){
+    if(si>=steps.length){
+      // All steps done — disable advance button, call done
+      const pipe=el('ipp-'+PHASES[phIdx].id);
+      if(pipe){ const adv=pipe.querySelector('.ipp-adv'); if(adv){adv.onclick=null;adv.textContent='✓ DONE';} }
+      setTimeout(done, 300);
+      return;
+    }
+    irEv(key, steps[si]);
+    irBuildPB(key, si);
+    updIRDevs();
+    // Ensure the advance button is visible and wired
+    const pipe=el('ipp-'+PHASES[phIdx].id);
+    if(pipe){
+      pipe.classList.add('manual-mode');
+      const adv=pipe.querySelector('.ipp-adv');
+      if(adv){
+        adv.textContent='▶ NEXT STEP ('+(si+1)+'/'+steps.length+')';
+        adv.onclick=()=>manualSteps(key, phIdx, steps, si+1, done);
+      }
+    }
+  }
+
+  runSeq(0);
+}
+
+// ══ SELF-HEALING CONTROLS ════════════════════════════════════
+const CTRLMAP={
+  t1:['Auto-block new unregistered MAC address on OT VLAN','Mandatory MFA enforced for all external VPN sessions to OT zone'],
+  t2:['Auto-patch critical CVEs on OT assets within 7-day SLA','Virtual patching IPS rule auto-deploy on new SCADA CVE alert'],
+  t3:['Automated firmware integrity SHA256 check every 6 hours','Mandatory vendor code-signing verification for all OT firmware updates'],
+  t4:['Auto rate-limit OT VLAN on flood detection (>5,000 pkt/s threshold)','Automatic PLC failover to manual control on network saturation >90%'],
+  t5:['Auto-lock OT account on after-hours login from new device fingerprint','Auto-enforce MFA re-authentication after 4-hour idle session on OT systems'],
+  t6:['Automated behavioural baseline refresh every 24hrs for all OT hosts','Auto-alert on 30-day dormant C2 beacon pattern (APT threat hunting rule)'],
+  t7:['Auto-VLAN quarantine on zone policy violation (cross-zone traffic rule)','Auto-generate firewall ACL entry on OT zone boundary anomaly detection'],
+  t8:['Auto-isolate workstation on macro execution in OT domain context','Auto-disable USB ports across OT estate on malware detection alert'],
+  t9:['Auto read-only mode on PLCs on anomalous Modbus write pattern','Auto-block Modbus master IP on replay sequence (duplicate TxID) detection'],
+  t10:['Auto-disable default credentials on new device joining OT network','Auto-service audit and port closure on config change without ITSM ticket'],
+};
+
+function applyControl(t,a){
+  const arr=CTRLMAP[t.id]||[];
+  const existing=G.controls.filter(c=>c.tid===t.id).length;
+  const nm=arr[existing%arr.length]||'Auto-hardening policy updated';
+  const saved=Math.round(t.cost*0.35+Math.random()*t.cost*0.2);
+  const ctrl={id:'CTRL-'+String(G.controls.length+1).padStart(3,'0'),
+    nm,tid:t.id,tshort:t.short,
+    trigger:`Incident ${a.id}`,rd:-Math.round(3+Math.random()*6),
+    saved,status:'applied',date:new Date().toLocaleDateString()};
+  G.controls.push(ctrl);
+  a.ctrl.push(nm);
+  G.M.risk=Math.max(5,Math.min(95,G.M.risk+4+ctrl.rd));
+  renderSOCCtrl();
+}
+
+// ══ AI TUNING ═════════════════════════════════════════════════
+function suggestTuning(tid){
+  const t=T.find(x=>x.id===tid);
+  const m=G.aiM[tid];
+  G.tuning={show:true,tid};
+  const fp=Math.round(m.fpr*100);
+  const props=[
+    {id:'p1',txt:`Raise Z-score threshold: ${m.z.toFixed(1)}σ → ${(m.z+0.4).toFixed(1)}σ (reduce sensitivity to minor sensor noise)`,checked:true},
+    {id:'p2',txt:`Add maintenance-window whitelist: suppress alerts 02:00–06:00 UTC (known low-activity window)`,checked:true},
+    {id:'p3',txt:`Require corroboration: alert only if 2+ independent indicators fire within 5-minute window`,checked:false},
+    {id:'p4',txt:`Add ${t.short} legitimate-activity fingerprint to AI baseline model (${t.fp_reasons[0]})`,checked:true},
+    {id:'p5',txt:`Increase minimum confidence threshold: ${m.z.toFixed(1)} → ${(m.z+0.2).toFixed(1)} sigma before SIEM alert raised`,checked:false},
+  ];
+  const wiz=document.getElementById('tuning-wiz');
+  el('tw-reason').innerHTML=`High FP streak detected: <b style="color:var(--warn)">${m.fpStreak} consecutive false positives</b> for threat <b>${t.short}</b>. Current FP rate: <b style="color:var(--warn)">${fp}%</b>`;
+  el('tw-analysis').innerHTML=`<b>AI Analysis:</b> The last ${m.fpStreak} alerts for <b>${t.short}</b> were classified as false positives.<br>
+  Common causes identified: "${t.fp_reasons.join('" · "')}"<br>
+  Proposed adjustments to reduce noise while maintaining detection coverage for real attacks:`;
+  el('tw-props').innerHTML=props.map(p=>`
+    <div class="tw-prop"><label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer;font-size:.73rem">
+      <input type="checkbox" id="${p.id}" ${p.checked?'checked':''} style="margin-top:2px;accent-color:var(--warn)">
+      <span>${p.txt}</span></label></div>`).join('');
+  wiz.classList.add('show');
+  irEv('analyze',`🔧 AI TUNING WIZARD triggered — ${t.short}`,
+    `FP streak: ${m.fpStreak} · FP rate: ${fp}% · Review AI Engine page to apply fine-tuning`);
+  if(document.getElementById('pg-ai').classList.contains('on'))renderAI();
+}
+
+function applyTuning(){
+  const tid=G.tuning.tid;
+  const m=G.aiM[tid];
+  const t=T.find(x=>x.id===tid);
+  // check which proposals were selected
+  const chk=id=>document.getElementById(id)?.checked;
+  let changes=[];
+  const fpBefore=+(m.fpr*100).toFixed(1);
+  if(chk('p1')){m.z=+(m.z+0.4).toFixed(2);changes.push(`Z-threshold +0.4 → ${m.z}σ`);}
+  if(chk('p2')){m.fpr=Math.max(0.03,m.fpr-0.08);changes.push('Maintenance window whitelist added');}
+  if(chk('p3')){m.fpr=Math.max(0.03,m.fpr-0.05);changes.push('Corroboration rule (2-of-N) enabled');}
+  if(chk('p4')){m.fpr=Math.max(0.03,m.fpr-0.06);m.tpr=Math.min(0.99,m.tpr+0.02);changes.push('Legitimate fingerprint added to baseline');}
+  if(chk('p5')){m.z=+(m.z+0.2).toFixed(2);changes.push(`Min confidence threshold raised`);}
+  m.fpr=Math.max(0.02,m.fpr);m.tune++;m.fpStreak=0;
+  const fpAfter=+(m.fpr*100).toFixed(1);
+  const accBefore=+(m.tpr*100-fpBefore).toFixed(1);
+  const accAfter=+(m.tpr*100-fpAfter).toFixed(1);
+  G.ftDB.unshift({ts:new Date().toLocaleString(),tid,tshort:t.short,
+    trigger:`FP streak ≥${m.fpStreak+2}`,change:changes.join(' | '),
+    fpBefore:fpBefore+'%',fpAfter:fpAfter+'%',
+    dAcc:'+'+Math.abs(accAfter-accBefore).toFixed(1)+'%',status:'applied'});
+  document.getElementById('tuning-wiz').classList.remove('show');
+  G.tuning.show=false;
+  irEv('post',`✅ AI MODEL FINE-TUNED — ${t.short}`,
+    `FP rate: ${fpBefore}% → ${fpAfter}% · Changes: ${changes.join(', ')}`);
+  updAICharts();renderAI();
+  setTimeout(()=>resetIR(),800);
+}
+function dismissTuning(){
+  document.getElementById('tuning-wiz').classList.remove('show');
+  G.tuning.show=false;
+  setTimeout(()=>resetIR(),600);
+}
+
+// ══ IR LIFECYCLE BUILDERS ═════════════════════════════════════
+function buildIRLeft(){
+  const el_=el('ir-tlist');el_.innerHTML='';
+  const sel_=el('ir-sel');sel_.innerHTML='';
+  const sf=el('sf-threat');if(sf)sf.innerHTML='<option value="all">All Threats</option>';
+  const tiers=[
+    {lbl:'TIER 1 — CRITICAL (Top 4)',c:'#ef4444',items:T.filter(t=>t.tier===1)},
+    {lbl:'TIER 2 — HIGH (Next 5)',c:'#f97316',items:T.filter(t=>t.tier===2)},
+    {lbl:'TIER 3 — MEDIUM (Final 1)',c:'#eab308',items:T.filter(t=>t.tier===3)},
+  ];
+  tiers.forEach(tier=>{
+    const hdr=document.createElement('div');
+    hdr.style.cssText='padding:5px 10px;background:var(--bg);border-bottom:1px solid var(--b1);font-family:var(--mono);font-size:.58rem;font-weight:700;letter-spacing:.12em;display:flex;align-items:center;gap:8px';
+    hdr.innerHTML=`<span style="color:${tier.c}">${tier.lbl}</span><div style="flex:1;height:1px;background:${tier.c}22"></div>`;
+    el_.appendChild(hdr);
+    tier.items.forEach(t=>{
+      const m=G.aiM[t.id];
+      const fp=Math.round(m.fpr*100);
+      const div=document.createElement('div');
+      div.className='iti'+(G.IR.threat?.id===t.id?' sel':'')+(G.IR.active&&G.IR.threat?.id===t.id?' fire':'');
+      div.style.setProperty('--tc',t.color);div.id='iti-'+t.id;
+      div.onclick=()=>{el('ir-sel').value=t.id;};
+      div.innerHTML=`<div class="iti-rk">#${t.rank} · ${t.type}</div>
+        <div class="iti-nm">${t.short}</div>
+        <div class="iti-meta">
+          <span class="bge ${t.tier===1?'bge-t1':t.tier===2?'bge-t2':'bge-t3'}">CVSSv3 ${t.cvss}</span>
+          <span style="font-size:.6rem;color:${fp>30?'var(--warn)':'var(--ok)'}">FP:${fp}%</span>
+          <div class="fp-bar-wrap"><div class="fp-bar-fill" style="width:${fp}%;background:${fp>30?'var(--warn)':'var(--ok)'}"></div></div>
+        </div>`;
+      el_.appendChild(div);
+      const opt=document.createElement('option');opt.value=t.id;opt.textContent=`#${t.rank} — ${t.short}`;
+      sel_.appendChild(opt);
+      if(sf){const fo=document.createElement('option');fo.value=t.id;fo.textContent=t.short;sf.appendChild(fo);}
+    });
+  });
+}
+
+function buildIRPipe(){
+  const el_=el('ir-pipe');el_.innerHTML='';
+  PHASES.forEach((p,i)=>{
+    const div=document.createElement('div');
+    div.className='ipp locked';div.id='ipp-'+p.id;
+    div.style.setProperty('--pc',p.c);
+    div.title=p.nm;
+    div.innerHTML=`<div class="ipp-dot"></div>
+      <div class="ipp-lbl">${p.s}</div>
+      <div class="ipp-pg"><div class="ipp-pg-f" id="ippf-${p.id}" style="background:${p.c}"></div></div>
+      <button class="ipp-adv" title="Advance to next step">▶ NEXT STEP</button>`;
+    el_.appendChild(div);
+  });
+  irSetPh(0);
+}
+
+function buildIRDevs(){
+  const el_=el('ir-devs');el_.innerHTML='';
+  DEVS.forEach(d=>{
+    const s=G.ds[d.id];
+    const div=document.createElement('div');
+    div.className='idev';div.id='idev-'+d.id;
+    div.innerHTML=`<div class="idev-ic">${d.ic}</div>
+      <div class="idev-nm">${d.nm}</div>
+      <div class="idev-val" id="ival-${d.id}" style="color:${d.c}">${s.v.toFixed(1)}</div>
+      <div class="idev-un">${d.un}</div>`;
+    el_.appendChild(div);
+  });
+}
+
+function irSetPh(idx){
+  G.IR.phIdx=idx;G.IR.phStart=Date.now();G.IR.pbPhIdx=0;G.IR.pbStIdx=0;
+  PHASES.forEach((p,i)=>{
+    const div=el('ipp-'+p.id);
+    const fill=el('ippf-'+p.id);
+    if(!div)return;
+    div.classList.remove('done','act','locked','manual-mode');
+    if(i<idx){div.classList.add('done');if(fill)fill.style.width='100%';}
+    else if(i===idx){
+      div.classList.add('act');if(fill)fill.style.width='0%';
+      if(G.IR.mode==='manual')div.classList.add('manual-mode');
+      let pr=0;const iv=setInterval(()=>{pr=Math.min(pr+1,100);if(fill)fill.style.width=pr+'%';if(pr>=100)clearInterval(iv);},35);
+    } else {div.classList.add('locked');if(fill)fill.style.width='0%';}
+  });
+  const p=PHASES[idx];
+  el('idb-ph').textContent=p.nm.toUpperCase();el('idb-ph').style.color=p.c;
+  el('idb-desc').textContent=G.IR.threat?p.desc:PHASES[0].desc;
+  el('f-ph').textContent=p.s;el('f-ph').style.color=p.c;
+  const st=document.getElementById('tb-st');
+  if(idx>=3&&idx<=4){st.textContent='INCIDENT';st.className='pill pill-c';}
+  else if(idx>=5){st.textContent='RECOVERY';st.className='pill pill-w';}
+  else{st.textContent='MONITOR';st.className='pill pill-ok';}
+}
+
+function irBuildPB(activeKey,stepIdx){
+  const t=G.IR.threat;
+  const el_=el('ir-pb');if(!el_)return;
+  if(!t){el_.innerHTML='<div style="padding:10px;font-size:.73rem;color:var(--txt3)">Select a scenario to view the IR playbook.</div>';return;}
+  const keys=['detect','analyze','contain','eradicate','recover','post'];
+  const aIdx=keys.indexOf(activeKey);
+  el_.innerHTML='';
+  keys.forEach((key,bi)=>{
+    const steps=t.ph[key]||[];
+    const ph=PHASES.find(p=>p.id===key)||PHASES[1+bi];
+    const done=bi<aIdx,act=bi===aIdx;
+    const blk=document.createElement('div');blk.className='pb-blk';
+    blk.innerHTML=`<div class="pb-bh">
+      <div style="width:13px;height:13px;border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:.6rem;
+        background:${done?'rgba(16,185,129,.12)':act?ph.c+'18':'rgba(255,255,255,.03)'}">
+        ${done?'<span style="color:var(--ok)">✓</span>':act?`<span style="color:${ph.c}">▶</span>`:'<span style="color:var(--txt3)">○</span>'}
+      </div>
+      <div class="pb-bn" style="color:${done?'var(--ok)':act?ph.c:'var(--txt3)'}">${ph.nm.toUpperCase()}</div>
+    </div>
+    ${steps.map((s,si)=>{
+      const d=done||(act&&si<stepIdx),a=act&&si===stepIdx;
+      return`<div class="pb-step ${d?'dn':a?'ac':''}">
+        <span class="n">${d?'✓':a?'▸':(si+1).toString().padStart(2,'0')}</span>
+        <span class="t">${s}</span></div>`;
+    }).join('')}`;
+    el_.appendChild(blk);
+  });
+  el('pb-phase-lbl').textContent=`${Math.round((aIdx/(keys.length-1))*100)}% complete`;
+}
+
+function updIRDevs(){
+  DEVS.forEach(d=>{
+    const s=G.ds[d.id];
+    const card=el('idev-'+d.id);
+    const val=el('ival-'+d.id);
+    if(!card)return;
+    val.textContent=s.v.toFixed(1);
+    card.className='idev';
+    if(s.rcvd)card.classList.add('rcvd');
+    else if(s.rec)card.classList.add('rec');
+    else if(s.iso)card.classList.add('iso');
+    else if(s.aff)card.classList.add('aff');
+  });
+}
+
+function irEv(phId,msg,det){
+  const ph=PHASES.find(p=>p.id===phId)||PHASES[G.IR.phIdx];
+  const feed=el('ir-feed');
+  const div=document.createElement('div');div.className='iev';
+  div.innerHTML=`<div class="iev-dot" style="background:${ph.c}"></div>
+    <div style="flex:1">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;flex-wrap:wrap">
+        <span class="iev-t">${new Date().toLocaleTimeString()}</span>
+        <span class="ph-chip" style="background:${ph.c}18;color:${ph.c}">${ph.s}</span>
+        ${G.IR.threat?`<span style="font-size:.59rem;color:var(--txt3);font-style:italic">${G.IR.threat.type}</span>`:''}
+      </div>
+      <div class="iev-msg">${msg}</div>
+      ${det?`<div class="iev-det">${det}</div>`:''}
+    </div>`;
+  feed.prepend(div);
+  while(feed.children.length>120)feed.removeChild(feed.lastChild);
+}
+
+// ══ LAUNCH IR ═════════════════════════════════════════════════
+function launchIR(){
+  if(G.IR.active)return;
+  const tid=el('ir-sel').value;
+  const t=T.find(x=>x.id===tid);
+  if(!t)return;
+  G.IR.active=true;G.IR.threat=t;G.IR.incStart=Date.now();G.IR.phIdx=0;
+  el('btn-launch').disabled=true;
+  el('ir-act-cnt').textContent='1 ACTIVE';
+  buildIRLeft();
+  const a=mkAlert(t.id);G.IR.pendAlert=a;
+  // Update IOCs
+  el('ioc-th').textContent=t.nm;el('ioc-th').style.color=t.color;
+  el('ioc-at').textContent=t.type;el('ioc-at').style.color=t.color;
+  el('ioc-vec').textContent=t.vec;el('ioc-vec').style.color='var(--crit)';
+  el('ioc-ast').textContent=t.devs.map(id=>DEVS.find(d=>d.id===id)?.nm||id).join(', ');
+  el('ioc-cv').textContent=t.cvss;el('ioc-cv').style.color=t.cvss>=9?'var(--crit)':'var(--warn)';
+  el('ioc-cn').textContent=`${a.conf}% — AI Engine`;el('ioc-cn').style.color=a.conf>70?'var(--crit)':'var(--warn)';
+  el('ioc-iec').textContent=t.iec;
+  irEv('prepare',`🔴 SCENARIO INITIATED: <b>${t.nm}</b>`,`Type: ${t.type} · CVSSv3: ${t.cvss} · ${t.iec}`);
+  irSetPh(1);
+  const m=G.aiM[t.id];
+  // Run detection steps then show triage
+  const dSteps=t.ph.detect||[];
+  function dNext(i){
+    if(i>=dSteps.length){setTimeout(()=>showTriage(t,a),350);return;}
+    irEv('detect',dSteps[i]);irBuildPB('detect',i);updIRDevs();
+    if(G.IR.mode==='auto'){
+      setTimeout(()=>dNext(i+1),G.spd*0.55);
+    } else {
+      const ipp=el('ipp-'+PHASES[1].id);
+      if(ipp){
+        ipp.classList.add('manual-mode');
+        const adv=ipp.querySelector('.ipp-adv');
+        if(adv){
+          adv.textContent='▶ NEXT STEP ('+(i+1)+'/'+dSteps.length+')';
+          adv.onclick=()=>dNext(i+1);
+        }
+      }
+    }
+  }
+  setTimeout(()=>dNext(0),G.spd*0.4);
+}
+
+function showTriage(t,a){
+  const m=G.aiM[t.id];
+  el('tb-ttl').textContent=`🔍 Alert Triage — ${t.short}`;
+  el('tb-desc').innerHTML=`AI Engine raised alert <b>${a.id}</b> for <b>${t.nm}</b>.<br>
+    AI Confidence: <b style="color:${a.conf>70?'var(--crit)':'var(--warn)'}">${a.conf}%</b> &nbsp;|&nbsp; 
+    Historical FP rate: <b style="color:${m.fpr>0.3?'var(--warn)':'var(--ok)'}">${Math.round(m.fpr*100)}%</b> &nbsp;|&nbsp;
+    FP streak: <b style="color:${m.fpStreak>1?'var(--warn)':'var(--txt)'}">${m.fpStreak}</b>`;
+  el('tb-ai-rsn').innerHTML=`
+    <b>Detection signatures triggered:</b><br>
+    ${t.why.map(w=>`• ${w}`).join('<br>')}<br><br>
+    <b>Known FP scenarios for this threat:</b><br>
+    ${t.fp_reasons.map(r=>`• ${r}`).join('<br>')}<br><br>
+    <b>AI Verdict:</b> ${m.fpr>0.3?`⚠ <span style="color:var(--warn)">Elevated FP rate (${Math.round(m.fpr*100)}%) — exercise caution. Consider context before classifying.</span>`
+      :`✓ <span style="color:var(--ok)">Confidence is ${a.conf}% — pattern consistent with known ${t.type} attack signature.</span>`}`;
+  el('tb-opts').innerHTML=`
+    <div class="tb-opt" style="border-color:var(--crit)">
+      <b style="color:var(--crit)">🚨 True Positive</b> — This is a real ${t.type} attack.<br>
+      <span style="font-size:.73rem;color:var(--txt2)">Action: Execute full 7-phase NIST IR lifecycle. Isolate devices, eradicate threat, recover systems.</span>
+    </div>
+    <div class="tb-opt" style="border-color:var(--warn)">
+      <b style="color:var(--warn)">⚠ False Positive</b> — This is legitimate activity.<br>
+      <span style="font-size:.73rem;color:var(--txt2)">Action: Dismiss alert, add to AI learning baseline. Trigger fine-tuning if FP streak ≥ 2.</span>
+    </div>`;
+  el('triage-ov').classList.add('show');
+}
+
+function setMode(m){
+  G.IR.mode=m;
+  el('mo-auto').classList.toggle('on',m==='auto');
+  el('mo-man').classList.toggle('on',m==='manual');
+  el('mode-hint').textContent=m==='manual'?'Click ▶ NEXT STEP on each phase to advance':'Phases auto-advance at simulation speed';
+  el('tb-mode-badge').textContent='MODE: '+m.toUpperCase();
+  document.getElementById('tb-mode-badge').style.color=m==='manual'?'var(--warn)':'var(--cyan)';
+  document.getElementById('tb-mode-badge').style.borderColor=m==='manual'?'rgba(245,158,11,.3)':'rgba(6,182,212,.3)';
+}
+
+function resetIR(){
+  G.IR.active=false;G.IR.threat=null;G.IR.phIdx=0;G.IR.pendAlert=null;
+  DEVS.forEach(d=>{G.ds[d.id].aff=false;G.ds[d.id].iso=false;G.ds[d.id].rec=false;G.ds[d.id].rcvd=false;});
+  el('btn-launch').disabled=false;el('ir-act-cnt').textContent='0 ACTIVE';
+  el('triage-ov').classList.remove('show');
+  buildIRLeft();buildIRPipe();buildIRDevs();irBuildPB('detect',0);
+  ['ioc-th','ioc-at','ioc-vec','ioc-ast','ioc-cv','ioc-cn','ioc-cl','ioc-iec'].forEach(id=>{
+    const e=el(id);if(e){e.textContent='—';e.style.color='var(--txt3)';}
+  });
+  el('tb-st').textContent='SECURE';el('tb-st').className='pill pill-ok';
+  irEv('prepare','🔵 System reset. Ready for next IR scenario.','');
+}
+function setSpd(v){G.spd=parseInt(v);el('spd-lbl').textContent=(v/1000).toFixed(1)+'s';}
+
+// ══ SOC FEED ═════════════════════════════════════════════════
+function renderFeed(){
+  const fs=el('sf-status')?.value||'all';
+  const ft=el('sf-threat')?.value||'all';
+  let arr=[...G.alerts];
+  if(fs!=='all')arr=arr.filter(a=>a.status===fs);
+  if(ft!=='all')arr=arr.filter(a=>a.tid===ft);
+  const tp=G.alerts.filter(a=>a.cls==='tp').length;
+  const fp=G.alerts.filter(a=>a.status==='fp').length;
+  el('ft-tot').textContent=G.alerts.length;el('ft-tp').textContent=tp;el('ft-fp').textContent=fp;
+  el('f-tot').textContent=G.alerts.length;el('f-tp').textContent=tp;el('f-fp').textContent=fp;
+  el('m-act').textContent=G.alerts.filter(a=>a.status==='nd').length;
+  const feed=el('soc-feed');if(!feed)return;feed.innerHTML='';
+  if(!arr.length){feed.innerHTML='<div style="padding:20px;text-align:center;font-size:.78rem;color:var(--txt3)">No alerts match filter.</div>';return;}
+  arr.forEach(a=>{
+    const t=T.find(x=>x.id===a.tid)||{short:'?',color:'var(--txt3)',tier:2,rank:0};
+    const div=document.createElement('div');
+    div.className='ali '+a.status;
+    const sB=a.status==='nd'?'<span class="bge bge-nd">PENDING</span>':
+      a.cls==='tp'?'<span class="bge bge-tp">TRUE POS</span>':
+      a.status==='fp'?'<span class="bge bge-fp">FALSE POS</span>':'<span class="bge bge-cl">CLOSED</span>';
+    div.innerHTML=`<div class="ali-dot" style="background:${t.color}"></div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:3px">
+          <span style="font-family:var(--mono);font-size:.65rem;color:var(--txt3)">${a.id}</span>
+          ${sB}
+          <span class="bge ${t.tier===1?'bge-t1':t.tier===2?'bge-t2':'bge-t3'}">#${t.rank} ${t.short}</span>
+          <span style="font-size:.65rem;color:${a.conf>70?'var(--crit)':'var(--warn)'}">AI:${a.conf}%</span>
+          <span style="margin-left:auto;font-size:.65rem;color:var(--txt3)">${a.time.toLocaleTimeString()}</span>
+        </div>
+        <div style="font-size:.76rem;line-height:1.3">${t.nm||'Unknown'}</div>
+        ${a.fpReason?`<div style="font-size:.68rem;color:var(--warn);margin-top:2px">FP Reason: ${a.fpReason}</div>`:''}
+        <div style="display:flex;gap:10px;margin-top:3px;font-size:.68rem;color:var(--txt3);flex-wrap:wrap">
+          ${a.mttd!=null?`<span>MTTD:<b style="color:var(--txt2);margin-left:3px">${ftm(a.mttd)}</b></span>`:''}
+          ${a.mttr!=null?`<span>MTTR:<b style="color:var(--txt2);margin-left:3px">${ftm(a.mttr)}</b></span>`:''}
+          ${a.cost!=null?`<span>Cost:<b style="color:var(--warn);margin-left:3px">$${fnum(a.cost)}</b></span>`:''}
+          ${a.dt!=null?`<span>DT:<b style="color:var(--violet);margin-left:3px">${ftm(a.dt)}</b></span>`:''}
+          ${a.ctrl.length?`<span>Controls:<b style="color:var(--ok);margin-left:3px">${a.ctrl.length}</b></span>`:''}
+        </div>
+      </div>`;
+    feed.appendChild(div);
+  });
+}
+function clearFP(){G.alerts=G.alerts.filter(a=>a.status!=='fp');renderFeed();}
+function updSOCBadge(){
+  const n=G.alerts.filter(a=>a.status==='nd').length;
+  const b=el('cnt-soc');if(b){b.style.display=n?'':'none';b.textContent=n;}
+}
+
+function updSOCM(){
+  const M=G.M;
+  const mttd=M.mttdN?ftm(Math.round(M.mttdSum/M.mttdN)):'—';
+  const mttr=M.mttrN?ftm(Math.round(M.mttrSum/M.mttrN)):'—';
+  const tot=M.tp+M.fp;const acc=tot?Math.round(M.tp/tot*100)+'%':'—';
+  el('m-mttd').textContent=mttd;el('m-mttr').textContent=mttr;
+  el('m-acc').textContent=acc;el('m-cost').textContent='$'+fnum(M.cost);
+  el('m-dt').textContent=ftm(M.dt);el('f-mttr').textContent=mttr;
+  el('f-cost').textContent='$'+fnum(M.cost);el('f-inc').textContent=M.incidents;
+  // push chart data
+  const push=(arr,v)=>{arr.push(v);arr.shift();};
+  push(G.CD.vol,M.totalAlerts);
+  push(G.CD.tpr,tot?Math.round(M.tp/tot*100):0);
+  push(G.CD.fpr,tot?Math.round(M.fp/tot*100):0);
+  push(G.CD.mttd,M.mttdN?Math.round(M.mttdSum/M.mttdN):0);
+  push(G.CD.mttr,M.mttrN?Math.round(M.mttrSum/M.mttrN):0);
+  push(G.CD.cost,M.cost);push(G.CD.risk,M.risk);
+  updCh('ch-vol',[G.CD.vol]);updCh('ch-tpfp',[G.CD.tpr,G.CD.fpr]);
+  updCh('ch-ttr',[G.CD.mttd,G.CD.mttr]);updCh('ch-cost',[G.CD.cost]);
+  updCh('ch-ciso-risk',[G.CD.risk]);updCh('ch-ciso-cost',[G.CD.cost]);
+}
+
+function renderSOCCtrl(){
+  const el_=el('soc-ctrl-list');if(!el_)return;
+  if(!G.controls.length){el_.innerHTML='<div style="font-size:.73rem;color:var(--txt3)">No controls yet. Run a scenario.</div>';return;}
+  el_.innerHTML='';
+  G.controls.slice(-8).reverse().forEach(c=>{
+    const div=document.createElement('div');
+    div.style.cssText='display:flex;gap:7px;align-items:flex-start;padding:5px 7px;background:rgba(16,185,129,.05);border:1px solid rgba(16,185,129,.15);border-radius:3px;font-size:.7rem';
+    div.innerHTML=`<span style="color:var(--ok);flex-shrink:0">✓</span><span style="flex:1">${c.nm}</span><span style="color:var(--txt3);font-family:var(--mono);font-size:.6rem;white-space:nowrap">${c.date}</span>`;
+    el_.appendChild(div);
+  });
+}
+
+// ══ AI PAGE ══════════════════════════════════════════════════
+function renderAI(){
+  const el_=el('ai-trows');if(!el_)return;el_.innerHTML='';
+  let gtp=0,gfp=0,gtune=0;
+  T.forEach(t=>{
+    const m=G.aiM[t.id];
+    gtp+=m.tp;gfp+=m.fp;gtune+=m.tune;
+    const fp=Math.round(m.fpr*100),tp=Math.round(m.tpr*100);
+    const tot=m.tp+m.fp;
+    const row=document.createElement('div');
+    row.className='ai-trow'+(G.aiSel===t.id?' sel':'');
+    row.onclick=()=>{G.aiSel=t.id;renderAI();};
+    row.innerHTML=`
+      <div style="min-width:16px;font-family:var(--mono);font-size:.6rem;color:${t.color}">#${t.rank}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.74rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.short}</div>
+        <div style="display:flex;align-items:center;gap:5px;margin-top:3px">
+          <div class="fp-bar-wrap" style="width:60px"><div class="fp-bar-fill" style="width:${fp}%;background:${fp>30?'var(--warn)':'var(--ok)'}"></div></div>
+          <span style="font-size:.6rem;color:var(--txt3)">${tot} alerts</span>
+        </div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:.65rem;color:${tp>80?'var(--ok)':'var(--warn)'}">TP:${tp}%</div>
+        <div style="font-size:.65rem;color:${fp>30?'var(--warn)':'var(--txt3)'}">FP:${fp}%</div>
+        ${m.tune>0?`<div style="font-size:.58rem;color:var(--cyan)">tuned×${m.tune}</div>`:''}
+      </div>`;
+    el_.appendChild(row);
+  });
+  const gtot=gtp+gfp;
+  el('ai-gtp').textContent=gtot?Math.round(gtp/gtot*100)+'%':'—';
+  el('ai-gfp').textContent=gtot?Math.round(gfp/gtot*100)+'%':'—';
+  el('ai-gtune').textContent=gtune;el('ai-gctrl').textContent=G.controls.length;
+  // Fine-tune DB
+  const tbody=el('ftdb');if(tbody){
+    tbody.innerHTML='';
+    if(!G.ftDB.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--txt3);padding:12px">No tuning events yet. Trigger FP streak ≥2 to see fine-tuning in action.</td></tr>';}
+    else G.ftDB.forEach(r=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td style="font-family:var(--mono);font-size:.65rem">${r.ts}</td>
+        <td>${r.tshort}</td><td style="color:var(--warn);font-size:.7rem">${r.trigger}</td>
+        <td style="font-size:.7rem">${r.change}</td>
+        <td style="font-family:var(--mono);color:var(--crit)">${r.fpBefore}</td>
+        <td style="font-family:var(--mono);color:var(--ok)">${r.fpAfter}</td>
+        <td style="font-family:var(--mono);color:var(--cyan)">${r.dAcc}</td>
+        <td><span class="bge bge-ok">${r.status}</span></td>`;
+      tbody.appendChild(tr);
+    });
+  }
+  // Per-threat history
+  const selT=G.aiSel?T.find(x=>x.id===G.aiSel):null;
+  el('ai-sel-nm').textContent=selT?selT.short:'All Threats';
+  el('ai-hist-nm').textContent=selT?selT.short:'select threat on left';
+  const htbody=el('ai-hist');if(htbody){
+    htbody.innerHTML='';
+    const hist=selT?G.aiM[selT.id].hist:[];
+    if(!hist.length){htbody.innerHTML='<tr><td colspan="11" style="text-align:center;color:var(--txt3);padding:10px">No history yet for this threat. Run a scenario first.</td></tr>';}
+    else hist.forEach((h,i)=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td style="font-family:var(--mono);font-size:.65rem">${i+1}</td>
+        <td style="font-size:.65rem">${h.ts}</td>
+        <td style="font-family:var(--mono);font-size:.65rem">${h.alertId}</td>
+        <td style="font-family:var(--mono);color:${h.conf>70?'var(--crit)':'var(--warn)'}">${h.conf}%</td>
+        <td><span class="bge ${h.cls==='TP'?'bge-tp':'bge-fp'}">${h.cls}</span></td>
+        <td>${h.mttd!=null?ftm(h.mttd):'—'}</td>
+        <td>${h.mttr!=null?ftm(h.mttr):'—'}</td>
+        <td>${h.dt!=null?ftm(h.dt):'—'}</td>
+        <td style="color:var(--warn)">${h.cost?'$'+fnum(h.cost):'—'}</td>
+        <td style="font-size:.68rem;color:var(--txt3);max-width:120px;overflow:hidden;text-overflow:ellipsis">${h.fpReason!=='—'?h.fpReason:'—'}</td>
+        <td style="color:var(--ok)">${h.ctrl}</td>`;
+      htbody.appendChild(tr);
+    });
+  }
+  updAICharts();
+}
+
+function updAICharts(){
+  // volume by threat
+  updCh('ch-ai-vol',[T.map(t=>G.aiM[t.id].tp+G.aiM[t.id].fp)]);
+  // FP rate rolling
+  const avgFP=T.reduce((a,t)=>a+G.aiM[t.id].fpr,0)/T.length;
+  G.CD.fpr.push(Math.round(avgFP*100));G.CD.fpr.shift();
+  updCh('ch-ai-fpr',[G.CD.fpr]);
+  // per-threat accuracy over time
+  const m=G.aiSel?G.aiM[G.aiSel]:null;
+  if(m&&m.hist.length>1){
+    const acc=m.hist.map((_,i)=>{const s=m.hist.slice(0,i+1);const tp=s.filter(x=>x.cls==='TP').length;return Math.round(tp/s.length*100);});
+    const fpr=m.hist.map((_,i)=>{const s=m.hist.slice(0,i+1);const fp=s.filter(x=>x.cls==='FP').length;return Math.round(fp/s.length*100);});
+    const lbls=m.hist.map((_,i)=>`#${i+1}`);
+    if(CH['ch-ai-acc']){CH['ch-ai-acc'].data.labels=lbls;CH['ch-ai-acc'].data.datasets[0].data=acc;CH['ch-ai-acc'].data.datasets[1].data=fpr;CH['ch-ai-acc'].update('none');}
+  }
+}
+
+// ══ CISO PAGE ════════════════════════════════════════════════
+function renderCISO(){
+  const M=G.M;const risk=M.risk;
+  // risk ring
+  const ring=document.getElementById('risk-ring');
+  ring.style.strokeDashoffset=201.1*(1-risk/100);
+  const rc=risk>70?'#ef4444':risk>40?'#f59e0b':'#10b981';
+  ring.style.stroke=rc;
+  el('c-risk').textContent=Math.round(risk);el('c-risk').style.color=rc;
+  el('c-risk-lbl').textContent=risk>70?'HIGH RISK':risk>40?'MODERATE RISK':'LOW RISK';
+  // factors
+  const factors_=[
+    {l:'Open incidents',v:G.alerts.filter(a=>a.status==='nd').length,hi:3},
+    {l:'Active threats',v:G.IR.active?1:0,hi:1},
+    {l:'Controls gap',v:Math.max(0,10-G.controls.length),hi:5},
+    {l:'Avg AI FP rate',v:Math.round(T.reduce((a,t)=>a+G.aiM[t.id].fpr,0)/T.length*100)+'%',hi:null},
+    {l:'Tune events run',v:G.ftDB.length,hi:null},
+  ];
+  el('c-factors').innerHTML=factors_.map(f=>`
+    <div style="display:flex;justify-content:space-between;font-size:.72rem;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04)">
+      <span style="color:var(--txt2)">${f.l}</span>
+      <span style="font-family:var(--mono);color:${f.hi&&+f.v>=f.hi?'var(--crit)':'var(--ok)'}">${f.v}</span>
+    </div>`).join('');
+  // costs
+  const dcost=Math.round(M.dt/60*2500);const labour=G.alerts.filter(a=>a.cls==='tp').length*4500;
+  const reg=Math.round(M.cost*0.15);const saved=Math.round(G.controls.reduce((a,c)=>a+c.saved,0));
+  el('c-costs').innerHTML=`
+    <div class="cost-row"><span>Total Incident Cost</span><span class="cost-val" style="color:var(--crit)">$${fnum(M.cost)}</span></div>
+    <div class="cost-row"><span>Production Downtime ($2,500/min)</span><span class="cost-val" style="color:var(--warn)">$${fnum(dcost)}</span></div>
+    <div class="cost-row"><span>Analyst Labour ($4,500/incident)</span><span class="cost-val" style="color:var(--info)">$${fnum(labour)}</span></div>
+    <div class="cost-row"><span>Regulatory Exposure (est.)</span><span class="cost-val" style="color:var(--violet)">$${fnum(reg)}</span></div>
+    <div class="cost-row" style="border-top:1px solid var(--b1);margin-top:4px;padding-top:7px;font-weight:600">
+      <span>Cost Avoided by Self-Healing AI</span><span class="cost-val" style="color:var(--ok)">$${fnum(saved)}</span></div>`;
+  // compliance
+  const n=G.controls.length;const inc=M.tp;
+  const comps=[
+    {l:'IEC 62443 Level 1',p:Math.min(100,40+n*6),c:'var(--info)'},
+    {l:'IEC 62443 Level 2',p:Math.min(100,20+n*5),c:'var(--warn)'},
+    {l:'NIST CSF',p:Math.min(100,55+inc*5),c:'var(--ok)'},
+    {l:'ISO 27001',p:Math.min(100,35+n*5),c:'var(--violet)'},
+    {l:'NIS2 Directive',p:Math.min(100,30+n*7+inc*3),c:'var(--cyan)'},
+  ];
+  el('c-comp').innerHTML=comps.map(c=>`<div class="cb-row">
+    <span class="cb-lbl">${c.l}</span>
+    <div class="pb" style="flex:1;height:5px"><div class="pb-f" style="width:${c.p}%;background:${c.c}"></div></div>
+    <span class="cb-pct" style="color:${c.c}">${Math.round(c.p)}%</span></div>`).join('');
+  // KPIs
+  const tot=M.tp+M.fp;const acc=tot?Math.round(M.tp/tot*100):0;
+  el('c-kpis').innerHTML=[
+    {l:'Confirmed Incidents',v:M.incidents,c:'var(--crit)',s:'True positive alerts'},
+    {l:'Alert Accuracy',v:acc+'%',c:'var(--ok)',s:'AI precision rate'},
+    {l:'Avg MTTD',v:M.mttdN?ftm(Math.round(M.mttdSum/M.mttdN)):'—',c:'var(--warn)',s:'Time to detect'},
+    {l:'Avg MTTR',v:M.mttrN?ftm(Math.round(M.mttrSum/M.mttrN)):'—',c:'var(--info)',s:'Time to respond'},
+  ].map(k=>`<div class="mt" style="--mc:${k.c}"><div class="mt-l">${k.l}</div><div class="mt-v">${k.v}</div><div class="mt-s">${k.s}</div></div>`).join('');
+  // Controls table
+  const ctbody=el('c-ctrl');if(ctbody){
+    ctbody.innerHTML=!G.controls.length?
+      '<tr><td colspan="6" style="text-align:center;color:var(--txt3);padding:10px">No controls applied yet.</td></tr>':
+      G.controls.map(c=>`<tr>
+        <td style="font-size:.74rem">${c.nm}</td>
+        <td><span class="bge bge-tp">${c.tshort}</span></td>
+        <td style="font-family:var(--mono);color:var(--ok)">${c.rd}pts</td>
+        <td style="font-family:var(--mono);color:var(--ok)">$${fnum(c.saved)}</td>
+        <td><span class="bge bge-ok">APPLIED</span></td>
+        <td style="font-size:.65rem;color:var(--txt3)">${c.date}</td></tr>`).join('');
+  }
+  // Recommendations
+  const recs_=[];
+  if(G.controls.length<5)recs_.push({ic:'🛡',t:'Deploy 5+ self-healing controls to reduce risk score. Run more IR scenarios to trigger automatic controls.',cl:'ib-i'});
+  if(M.tp===0)recs_.push({ic:'⚡',t:'Run at least 3 IR scenarios to generate meaningful metrics for the board report.',cl:'ib-i'});
+  const hiFP=T.filter(t=>G.aiM[t.id].fpr>0.35);
+  if(hiFP.length)recs_.push({ic:'🤖',t:`AI fine-tuning needed: ${hiFP.map(t=>t.short).join(', ')} have >35% FP rate. Visit AI Engine page.`,cl:'ib-w'});
+  if(M.risk>50)recs_.push({ic:'🔴',t:'Risk score >50: immediate board escalation recommended per NIS2 Article 20 significant incident threshold.',cl:'ib-c'});
+  if(M.tp>0)recs_.push({ic:'📊',t:`${M.tp} incidents resolved with avg MTTR of ${M.mttrN?ftm(Math.round(M.mttrSum/M.mttrN)):'—'}. Target: reduce MTTR by 30% in next quarter via enhanced detection rules.`,cl:'ib-ok'});
+  recs_.push({ic:'📋',t:'Schedule quarterly OT penetration test and IEC 62443-3-2 zone risk assessment with external auditor.',cl:'ib-i'});
+  el('c-recs').innerHTML=recs_.map(r=>`<div class="ib ${r.cl}" style="padding:8px 10px;font-size:.74rem"><span>${r.ic}</span> ${r.t}</div>`).join('');
+  // Summary table
+  const stbody=el('c-summ');if(stbody){
+    stbody.innerHTML='';
+    T.forEach(t=>{
+      const m=G.aiM[t.id];const hist=m.hist;
+      const alerts=hist.length,tph=hist.filter(x=>x.cls==='TP').length;
+      const fph=hist.filter(x=>x.cls==='FP').length;
+      const acc2=alerts?Math.round(tph/alerts*100)+'%':'—';
+      const avgMTTD=hist.length?ftm(Math.round(hist.reduce((a,x)=>a+(x.mttd||0),0)/hist.length)):'—';
+      const avgMTTR=hist.length?ftm(Math.round(hist.reduce((a,x)=>a+(x.mttr||0),0)/hist.length)):'—';
+      const totDT=hist.reduce((a,x)=>a+(x.dt||0),0);
+      const totC=hist.reduce((a,x)=>a+(x.cost||0),0);
+      const ctrl=G.controls.filter(c=>c.tid===t.id).length;
+      const heal=ctrl>0?`<span class="bge bge-ok">${ctrl} ACTIVE</span>`:`<span class="bge bge-cl">NONE</span>`;
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td style="font-size:.75rem;font-weight:500">${t.short}</td>
+        <td><span class="bge ${t.tier===1?'bge-t1':t.tier===2?'bge-t2':'bge-t3'}">T${t.tier}</span></td>
+        <td style="font-family:var(--mono);text-align:center">${alerts}</td>
+        <td style="font-family:var(--mono);color:var(--crit);text-align:center">${tph}</td>
+        <td style="font-family:var(--mono);color:var(--warn);text-align:center">${fph}</td>
+        <td style="font-family:var(--mono);color:${acc2!=='—'&&+acc2.replace('%','')>80?'var(--ok)':'var(--warn)'}">${acc2}</td>
+        <td style="font-family:var(--mono)">${avgMTTD}</td><td style="font-family:var(--mono)">${avgMTTR}</td>
+        <td style="font-family:var(--mono);color:var(--violet)">${totDT?ftm(totDT):'—'}</td>
+        <td style="font-family:var(--mono);color:var(--warn)">${totC?'$'+fnum(totC):'—'}</td>
+        <td style="text-align:center">${ctrl}</td><td>${heal}</td>`;
+      stbody.appendChild(tr);
+    });
+  }
+  updCh('ch-ciso-risk',[G.CD.risk]);updCh('ch-ciso-cost',[G.CD.cost]);
+}
+
+// ══ DEVICE SIM TICK ══════════════════════════════════════════
+function simTick(){
+  DEVS.forEach(d=>{
+    const s=G.ds[d.id];const [lo,hi]=d.nl;
+    let delta=(Math.random()-.5)*(hi-lo)*.08;
+    if(s.aff&&!s.iso&&G.IR.threat)G.IR.threat.sim(s);
+    if(s.iso)delta=(Math.random()-.5)*(hi-lo)*.01;
+    if(s.rec){const tgt=rnd(lo,hi);delta=(tgt-s.v)*.12;}
+    s.v=Math.max(0,+(s.v+delta).toFixed(2));
+    s.h.push(s.v);if(s.h.length>20)s.h.shift();
+  });
+  updIRDevs();
+  if(G.IR.active){
+    const e=Math.floor((Date.now()-G.IR.phStart)/1000);
+    el('idb-t').textContent=`${String(Math.floor(e/60)).padStart(2,'0')}:${String(e%60).padStart(2,'0')}`;
+  }
+}
+
+// ══ HELPERS ═══════════════════════════════════════════════════
+function rnd(lo,hi){return +(lo+Math.random()*(hi-lo)).toFixed(2);}
+function ftm(s){if(!s&&s!==0)return'—';if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m'+String(s%60).padStart(2,'0')+'s';return Math.floor(s/3600)+'h'+String(Math.floor((s%3600)/60)).padStart(2,'0')+'m';}
+function fnum(n){if(!n)return'0';if(n>=1e6)return(n/1e6).toFixed(1)+'M';if(n>=1000)return(n/1000).toFixed(1)+'k';return String(n);}
+function el(id){return document.getElementById(id);}
+
+// ══ BOOT ═════════════════════════════════════════════════════
+buildIRLeft();buildIRPipe();buildIRDevs();irBuildPB('detect',0);
+initCharts();renderFeed();renderSOCCtrl();
+irEv('prepare','🟢 OT SecureOps Platform online — 8 ICS assets monitored, all green',
+  'NIST SP 800-61 Rev.2 · IEC 62443 · 10 OT threat scenarios loaded · AI anomaly engine armed');
+irEv('prepare','📋 Select an OT threat from the list and click Launch Scenario',
+  'AUTO mode: all phases advance automatically. MANUAL mode: analyst clicks ▶ NEXT STEP per phase.');
+setMode('auto');
+G.tid=setInterval(simTick,750);
+
+</script>
+</body>
+</html>
